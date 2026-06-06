@@ -58,7 +58,7 @@ enum class TokenType {
     BANG, BANG_EQUAL, EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
 
     // Literals
-    IDENTIFIER, STRING, NUMBER,
+    IDENTIFIER, STRING, INT_NUMBER, FLOAT_NUMBER,
 
     EOF,
 }
@@ -75,7 +75,7 @@ fun scan(source: String): List<Token> {
     var start = 0
     var line = 1
 
-    fun peek() = source.getOrNull(current)
+    fun peek(offset: Int = 0) = source.getOrNull(current + offset)
 
     fun next() = source[current++]
 
@@ -90,6 +90,45 @@ fun scan(source: String): List<Token> {
         val str = source.substring(start, current)
         val token = Token(type, str, literal, line)
         tokens.add(token)
+    }
+
+    fun scanString() {
+        while (peek() != '"' && current < source.length) {
+            // explicit handling as we can capture lines within the string
+            if (peek() == '\n') line++
+            next()
+        }
+
+        if (current >= source.length) {
+            handleError(line, "Unterminated string.")
+            return
+        }
+
+        next()
+        val value = source.substring(start + 1, current - 1) // trim quotes
+        register(TokenType.STRING, value)
+    }
+
+    fun scanNumber() {
+        while (peek()?.isDigit() == true) next()
+
+        var isFloating = false
+        if (peek() == '.' && peek(offset = 1)?.isDigit() == true) {
+            isFloating = true
+            next() // consume '.'
+            while(peek()?.isDigit() == true) next()
+        }
+
+        val type = if (isFloating) TokenType.FLOAT_NUMBER else TokenType.INT_NUMBER
+        val substr = source.substring(start, current)
+        val value: Any = if (isFloating) substr.toDouble() else substr.toInt()
+
+        register(type, value)
+    }
+
+    fun scanIdentifier() {
+        while (peek()?.isLetterOrDigit() == true || peek() == '_') next()
+        register(TokenType.IDENTIFIER)
     }
 
     val scanToken = fun() {
@@ -117,8 +156,13 @@ fun scan(source: String): List<Token> {
             }
             ' ', '\r', '\t' -> { /* Ignore */ }
             '\n' -> line++
+            '"' -> scanString()
 
-            else -> handleError(line, "Unexpected character '$c'")
+            else -> when {
+                c.isDigit() -> scanNumber()
+                c.isLetter() || c == '_' -> scanIdentifier()
+                else -> handleError(line, "Unexpected character '$c'")
+            }
         }
     }
 

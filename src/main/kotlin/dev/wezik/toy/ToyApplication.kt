@@ -60,6 +60,9 @@ enum class TokenType {
     // Literals
     IDENTIFIER, STRING, INT_NUMBER, FLOAT_NUMBER,
 
+    // Keywords
+    TRUE, FALSE, IF, ELSE, FOR,
+
     EOF,
 }
 
@@ -126,9 +129,18 @@ fun scan(source: String): List<Token> {
         register(type, value)
     }
 
+    val keywords = mapOf(
+        "true" to TokenType.TRUE,
+        "false" to TokenType.FALSE,
+        "for" to TokenType.FOR,
+        "if" to TokenType.IF,
+        "else" to TokenType.ELSE,
+    )
+
     fun scanIdentifier() {
         while (peek()?.isLetterOrDigit() == true || peek() == '_') next()
-        register(TokenType.IDENTIFIER)
+        val substr = source.substring(start, current)
+        register(keywords[substr] ?: TokenType.IDENTIFIER)
     }
 
     val scanToken = fun() {

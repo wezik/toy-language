@@ -33,6 +33,7 @@ fun runInteractive() {
 fun runFile(filePath: String) {
     val bytes = File(filePath).readBytes()
     run(String(bytes))
+    if (context.hadError) exitProcess(65)
 }
 
 fun handleError(line: Int, message: String, where: String = "") {
@@ -46,7 +47,7 @@ data class Token(
     val literal: Any?,
     val line: Int,
 ) {
-    override fun toString() = "$type $lexeme $literal"
+    override fun toString() = "Token(type '$type', lexeme '$lexeme', literal '$literal')"
 }
 
 enum class TokenType {
@@ -65,7 +66,6 @@ enum class TokenType {
 fun run(source: String) {
     val tokens = scan(source)
     println(tokens.joinToString(" "))
-    if (context.hadError) exitProcess(65)
 }
 
 fun scan(source: String): List<Token> {
@@ -75,7 +75,17 @@ fun scan(source: String): List<Token> {
     var start = 0
     var line = 1
 
+    fun peek() = source.getOrNull(current)
+
     fun next() = source[current++]
+
+    fun isNext(expected: Char): Boolean {
+        val c = source.getOrNull(current)
+        val isExpected = c == expected
+        if (isExpected) current++
+        return isExpected
+    }
+
     fun register(type: TokenType, literal: Any? = null) {
         val str = source.substring(start, current)
         val token = Token(type, str, literal, line)
@@ -97,6 +107,17 @@ fun scan(source: String): List<Token> {
             ':' -> register(TokenType.COLON)
             ';' -> register(TokenType.SEMICOLON)
             '*' -> register(TokenType.STAR)
+            '!' -> register(if (isNext('=')) TokenType.BANG_EQUAL else TokenType.BANG)
+            '=' -> register(if (isNext('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL)
+            '<' -> register(if (isNext('=')) TokenType.LESS_EQUAL else TokenType.LESS)
+            '>' -> register(if (isNext('=')) TokenType.GREATER_EQUAL else TokenType.GREATER)
+            '/' -> {
+                if (!isNext('/')) register(TokenType.SLASH)
+                else while (peek() != '\n' && current < source.length) current++
+            }
+            ' ', '\r', '\t' -> { /* Ignore */ }
+            '\n' -> line++
+
             else -> handleError(line, "Unexpected character '$c'")
         }
     }

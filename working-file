@@ -1,5 +1,74 @@
-((({{{[[[]]));;::,,..)))++--**// this is a comment 1
-**=! <= >= :: []
+// ### Basic spec of the language (features to be considered mvp) ###
 
-/ this is a slash
-// End of file comment
+// -- Defining variables --
+
+// default immutable definition
+foo: string = "bar" // mutable, type specified
+
+// can be shortened (type inheritance)
+foo := "bar" // mutable, type inherited
+
+// constant declaration (uses type inheritance by default)
+FOO :: "bar" // immutable, type inherited constant
+
+// defining data types
+
+// structs
+Vec3 :: struct {
+    x: float // all types are non-null by default
+    y: float? // nullable
+    z: float = 0.3 // optional default
+}
+
+// enums (extended, carrying values, not c style)
+Direction :: enum(x: int, y: int) {
+    NORTH(0, -1),
+    EAST(1, 0),
+    SOUTH(0, 1),
+    WEST(-1, 0),
+}
+
+// constructing data types
+foo := Vec3(2, y = null) // foo == Vec3(x = 2.0, y = null, z = 0.3)
+
+// -- Procedures(a.k.a. functions / methods) type --
+
+// default definition
+sum :: (x: int, y: int) -> int {
+    return x + y
+}
+
+// this means procedures are first class citizens
+Button :: struct {
+    just_callback: (T) -> R
+    nullable_callback: (T) -> R?
+    optional_callback: ((T) -> R)?
+}
+
+// -- Handling nullable types --
+
+// types by default are non nullable unless made so explicitly
+// they can be handled with regular checks or elvis operators
+
+nullable: string? = "some"
+if (nullable == null) {
+    // ...
+}
+
+// or
+nullable: string? = "some"
+non_nullable := nullable ?: "none"
+
+// you can also call functions on nullable types using safe calls
+nullable?.toUpperCase()
+
+// combined
+some_big_case := nullable?.toUpperCase() ?: "NONE"
+
+// -- Maybe?? --
+// 1. async procedure coloring and structured concurrency
+// 2. Result / Some / Error built in types (means errors as values)
+// 3. "data_struct" (naming wip) built in identifier, serving as an extension to structs, default perform deep copies
+// 4. procedures can be type inherited and specified in a single line with "=" syntax
+// 5. procedure extensions and procedures on top of structs
+// 6. mut keyword for assigning variables (all assignments become immutable by default)

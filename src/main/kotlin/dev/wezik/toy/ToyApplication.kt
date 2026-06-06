@@ -52,7 +52,7 @@ data class Token(
 
 enum class TokenType {
     // Single char tokens
-    L_PAREN, R_PAREN, L_BRACE, R_BRACE, L_BRACKET, R_BRACKET, COMMA, DOT, MINUS, PLUS, COLON, SEMICOLON, SLASH, STAR,
+    L_PAREN, R_PAREN, L_BRACE, R_BRACE, L_BRACKET, R_BRACKET, COMMA, DOT, MINUS, PLUS, COLON, SEMICOLON, SLASH, STAR, QUESTION,
 
     // Comparators
     BANG, BANG_EQUAL, EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
@@ -61,7 +61,7 @@ enum class TokenType {
     IDENTIFIER, STRING, INT_NUMBER, FLOAT_NUMBER,
 
     // Keywords
-    TRUE, FALSE, IF, ELSE, FOR,
+    TRUE, FALSE, IF, ELSE, FOR, STRUCT,
 
     EOF,
 }
@@ -119,7 +119,7 @@ fun scan(source: String): List<Token> {
         if (peek() == '.' && peek(offset = 1)?.isDigit() == true) {
             isFloating = true
             next() // consume '.'
-            while(peek()?.isDigit() == true) next()
+            while (peek()?.isDigit() == true) next()
         }
 
         val type = if (isFloating) TokenType.FLOAT_NUMBER else TokenType.INT_NUMBER
@@ -135,6 +135,7 @@ fun scan(source: String): List<Token> {
         "for" to TokenType.FOR,
         "if" to TokenType.IF,
         "else" to TokenType.ELSE,
+        "struct" to TokenType.STRUCT,
     )
 
     fun scanIdentifier() {
@@ -162,11 +163,15 @@ fun scan(source: String): List<Token> {
             '=' -> register(if (isNext('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL)
             '<' -> register(if (isNext('=')) TokenType.LESS_EQUAL else TokenType.LESS)
             '>' -> register(if (isNext('=')) TokenType.GREATER_EQUAL else TokenType.GREATER)
+            '?' -> register(TokenType.QUESTION)
             '/' -> {
                 if (!isNext('/')) register(TokenType.SLASH)
                 else while (peek() != '\n' && current < source.length) current++
             }
-            ' ', '\r', '\t' -> { /* Ignore */ }
+
+            // white-space ignore
+            ' ', '\r', '\t' -> {}
+
             '\n' -> line++
             '"' -> scanString()
 

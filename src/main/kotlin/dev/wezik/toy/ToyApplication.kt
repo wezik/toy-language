@@ -19,7 +19,7 @@ fun runInteractive() {
 
     fun BufferedReader.readWithPrompt(): String? {
         print("> ")
-        return reader.readLine()
+        return readLine()
     }
 
     while (true) {
@@ -63,7 +63,7 @@ enum class TokenType {
     // Keywords
     TRUE, FALSE, IF, ELSE, FOR, STRUCT,
 
-    EOF,
+    EOF, ARROW,
 }
 
 fun run(source: String) {
@@ -154,16 +154,16 @@ fun scan(source: String): List<Token> {
             ']' -> register(TokenType.R_BRACKET)
             ',' -> register(TokenType.COMMA)
             '.' -> register(TokenType.DOT)
-            '-' -> register(TokenType.MINUS)
             '+' -> register(TokenType.PLUS)
             ':' -> register(TokenType.COLON)
             ';' -> register(TokenType.SEMICOLON)
             '*' -> register(TokenType.STAR)
+            '?' -> register(TokenType.QUESTION)
+            '-' -> register(if (isNext('>')) TokenType.ARROW else TokenType.MINUS)
             '!' -> register(if (isNext('=')) TokenType.BANG_EQUAL else TokenType.BANG)
             '=' -> register(if (isNext('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL)
             '<' -> register(if (isNext('=')) TokenType.LESS_EQUAL else TokenType.LESS)
             '>' -> register(if (isNext('=')) TokenType.GREATER_EQUAL else TokenType.GREATER)
-            '?' -> register(TokenType.QUESTION)
             '/' -> {
                 if (!isNext('/')) register(TokenType.SLASH)
                 else while (peek() != '\n' && current < source.length) current++

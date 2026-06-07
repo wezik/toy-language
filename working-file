@@ -56,11 +56,11 @@ if (nullable == null) {
 }
 
 // or
-nullable: string? = "some"
-non_nullable := nullable ?: "none"
+nullable: string? = "some" // nullable type
+non_nullable := nullable ?: "none" // elvis operator
 
 // you can also call functions on nullable types using safe calls
-nullable?.toUpperCase()
+nullable?.toUpperCase() // safe call
 
 // combined
 some_big_case := nullable?.toUpperCase() ?: "NONE"

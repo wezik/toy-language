@@ -9,10 +9,6 @@ fun main(args: Array<String>) {
     if (args.isEmpty()) runInteractive() else runFile(args[0])
 }
 
-data class Context(var hadError: Boolean = false)
-
-val context = Context()
-
 fun runInteractive() {
     val input = InputStreamReader(System.`in`)
     val reader = BufferedReader(input)
@@ -26,19 +22,46 @@ fun runInteractive() {
         val line = reader.readWithPrompt() ?: break
         run(line)
         // NOTE: Reset the error handling flag within the interactive loop
-        context.hadError = false
+        scannerContext.hadError = false
     }
 }
 
 fun runFile(filePath: String) {
     val bytes = File(filePath).readBytes()
     run(String(bytes))
-    if (context.hadError) exitProcess(65)
+    if (scannerContext.hadError) exitProcess(65)
 }
+
+fun run(source: String) {
+    val tokens = scan(source)
+    println(tokens.joinToString(" "))
+    val expr = Expr.Grouping(
+        expr = Expr.Binary(
+            left = Expr.Literal(2),
+            operator = Token(TokenType.PLUS, "+", null, 1),
+            right = Expr.Grouping(
+                expr = Expr.Binary(
+                    left = Expr.Literal(3),
+                    operator = Token(TokenType.STAR, "*", null, 1),
+                    right = Expr.Grouping(
+                        expr = Expr.Literal(5),
+                    ),
+                )
+            ),
+        )
+    )
+    println(prettyPrint(expr))
+}
+
+// SCANNER
+
+data class ScannerContext(var hadError: Boolean = false)
+
+val scannerContext = ScannerContext()
 
 fun handleError(line: Int, message: String, where: String = "") {
     System.err.println("[line $line]: Error $where: $message")
-    context.hadError = true
+    scannerContext.hadError = true
 }
 
 data class Token(
@@ -47,12 +70,18 @@ data class Token(
     val literal: Any?,
     val line: Int,
 ) {
-    override fun toString() = "Token(type '$type', lexeme '$lexeme', literal '$literal')"
+    override fun toString() = "#(type '$type' | lexeme '$lexeme' | literal '$literal')"
 }
 
 enum class TokenType {
     // Single char tokens
     L_PAREN, R_PAREN, L_BRACE, R_BRACE, L_BRACKET, R_BRACKET, COMMA, DOT, MINUS, PLUS, COLON, SEMICOLON, SLASH, STAR, QUESTION,
+
+    // Compound colon tokens
+    DOUBLE_COLON, COLON_EQUAL,
+
+    // Custom sugar (nullable operators / lambdas)
+    SAFE_CALL, ELVIS, ARROW,
 
     // Comparators
     BANG, BANG_EQUAL, EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
@@ -61,14 +90,9 @@ enum class TokenType {
     IDENTIFIER, STRING, INT_NUMBER, FLOAT_NUMBER,
 
     // Keywords
-    TRUE, FALSE, IF, ELSE, FOR, STRUCT,
+    TRUE, FALSE, NULL, IF, ELSE, FOR, RETURN, STRUCT, ENUM,
 
-    EOF, ARROW,
-}
-
-fun run(source: String) {
-    val tokens = scan(source)
-    println(tokens.joinToString(" "))
+    EOF,
 }
 
 fun scan(source: String): List<Token> {
@@ -132,10 +156,13 @@ fun scan(source: String): List<Token> {
     val keywords = mapOf(
         "true" to TokenType.TRUE,
         "false" to TokenType.FALSE,
-        "for" to TokenType.FOR,
+        "null" to TokenType.NULL,
         "if" to TokenType.IF,
         "else" to TokenType.ELSE,
+        "for" to TokenType.FOR,
+        "return" to TokenType.RETURN,
         "struct" to TokenType.STRUCT,
+        "enum" to TokenType.ENUM,
     )
 
     fun scanIdentifier() {
@@ -155,10 +182,21 @@ fun scan(source: String): List<Token> {
             ',' -> register(TokenType.COMMA)
             '.' -> register(TokenType.DOT)
             '+' -> register(TokenType.PLUS)
-            ':' -> register(TokenType.COLON)
+            ':' -> register(when {
+                isNext(':') -> TokenType.DOUBLE_COLON
+                isNext('=') -> TokenType.COLON_EQUAL
+                else -> TokenType.COLON
+            })
             ';' -> register(TokenType.SEMICOLON)
             '*' -> register(TokenType.STAR)
-            '?' -> register(TokenType.QUESTION)
+            '?' -> register(
+                when {
+                    isNext('.') -> TokenType.SAFE_CALL
+                    isNext(':') -> TokenType.ELVIS
+                    else -> TokenType.QUESTION
+                }
+            )
+
             '-' -> register(if (isNext('>')) TokenType.ARROW else TokenType.MINUS)
             '!' -> register(if (isNext('=')) TokenType.BANG_EQUAL else TokenType.BANG)
             '=' -> register(if (isNext('=')) TokenType.EQUAL_EQUAL else TokenType.EQUAL)
@@ -190,4 +228,56 @@ fun scan(source: String): List<Token> {
 
     tokens.add(Token(TokenType.EOF, "", null, line))
     return tokens
+}
+
+// PARSER
+sealed interface Expr {
+    data class Literal(val value: Any?) : Expr
+    data class Grouping(val expr: Expr) : Expr
+    data class Unary(val operator: Token, val right: Expr) : Expr
+    data class Binary(val left: Expr, val operator: Token, val right: Expr) : Expr
+}
+
+interface PrintTask
+data class Evaluate(val expr: Expr) : PrintTask
+data class Append(val text: String) : PrintTask
+
+fun prettyPrint(root: Expr): String {
+    val printTasks = ArrayDeque<PrintTask>()
+    val output = StringBuilder()
+    printTasks.addLast(Evaluate(root))
+
+    // Tree traversal using an explicit stack instead of recursion, to avoid stack overflow
+    // on deeply nested expressions. Each iteration either appends text directly or breaks
+    // an expression into smaller tasks pushed back onto the stack.
+    // Tasks are pushed in reverse execution order since the stack is LIFO.
+    while (printTasks.isNotEmpty()) {
+        when (val task = printTasks.removeLast()) {
+            is Append -> output.append(task.text)
+            is Evaluate -> when (val expr = task.expr) {
+                is Expr.Literal -> output.append(expr.value?.toString() ?: "null")
+                is Expr.Grouping -> {
+                    printTasks.addLast(Append(")"))
+                    printTasks.addLast(Evaluate(expr.expr))
+                    printTasks.addLast(Append("(group "))
+                }
+
+                is Expr.Unary -> {
+                    printTasks.addLast(Append(")"))
+                    printTasks.addLast(Evaluate(expr.right))
+                    printTasks.addLast(Append("(${expr.operator.lexeme} "))
+                }
+
+                is Expr.Binary -> {
+                    printTasks.addLast(Append(")"))
+                    printTasks.addLast(Evaluate(expr.right))
+                    printTasks.addLast(Append(" "))
+                    printTasks.addLast(Evaluate(expr.left))
+                    printTasks.addLast(Append("(${expr.operator.lexeme} "))
+                }
+            }
+        }
+    }
+
+    return output.toString()
 }

@@ -34,23 +34,10 @@ fun runFile(filePath: String) {
 
 fun run(source: String) {
     val tokens = scan(source)
-    println(tokens.joinToString(" "))
-    val expr = Expr.Grouping(
-        expr = Expr.Binary(
-            left = Expr.Literal(2),
-            operator = Token(TokenType.PLUS, "+", null, 1),
-            right = Expr.Grouping(
-                expr = Expr.Binary(
-                    left = Expr.Literal(3),
-                    operator = Token(TokenType.STAR, "*", null, 1),
-                    right = Expr.Grouping(
-                        expr = Expr.Literal(5),
-                    ),
-                )
-            ),
-        )
-    )
-    println(prettyPrint(expr))
+    println("Tokens: ${tokens.joinToString(" ")}")
+
+    val expr = parse(tokens)
+    println("Expr: $expr")
 }
 
 // SCANNER
@@ -182,11 +169,14 @@ fun scan(source: String): List<Token> {
             ',' -> register(TokenType.COMMA)
             '.' -> register(TokenType.DOT)
             '+' -> register(TokenType.PLUS)
-            ':' -> register(when {
-                isNext(':') -> TokenType.DOUBLE_COLON
-                isNext('=') -> TokenType.COLON_EQUAL
-                else -> TokenType.COLON
-            })
+            ':' -> register(
+                when {
+                    isNext(':') -> TokenType.DOUBLE_COLON
+                    isNext('=') -> TokenType.COLON_EQUAL
+                    else -> TokenType.COLON
+                }
+            )
+
             ';' -> register(TokenType.SEMICOLON)
             '*' -> register(TokenType.STAR)
             '?' -> register(
@@ -238,46 +228,118 @@ sealed interface Expr {
     data class Binary(val left: Expr, val operator: Token, val right: Expr) : Expr
 }
 
-interface PrintTask
-data class Evaluate(val expr: Expr) : PrintTask
-data class Append(val text: String) : PrintTask
+fun parse(tokens: List<Token>): Expr {
+    var current = 0
 
-fun prettyPrint(root: Expr): String {
-    val printTasks = ArrayDeque<PrintTask>()
-    val output = StringBuilder()
-    printTasks.addLast(Evaluate(root))
+    fun peek(offset: Int = 0) = tokens[current + offset]
+    fun isAtEnd() = peek().type == TokenType.EOF
+    fun previous() = tokens[current - 1]
+    fun check(type: TokenType) = if (isAtEnd()) false else peek().type == type
 
-    // Tree traversal using an explicit stack instead of recursion, to avoid stack overflow
-    // on deeply nested expressions. Each iteration either appends text directly or breaks
-    // an expression into smaller tasks pushed back onto the stack.
-    // Tasks are pushed in reverse execution order since the stack is LIFO.
-    while (printTasks.isNotEmpty()) {
-        when (val task = printTasks.removeLast()) {
-            is Append -> output.append(task.text)
-            is Evaluate -> when (val expr = task.expr) {
-                is Expr.Literal -> output.append(expr.value?.toString() ?: "null")
-                is Expr.Grouping -> {
-                    printTasks.addLast(Append(")"))
-                    printTasks.addLast(Evaluate(expr.expr))
-                    printTasks.addLast(Append("(group "))
-                }
-
-                is Expr.Unary -> {
-                    printTasks.addLast(Append(")"))
-                    printTasks.addLast(Evaluate(expr.right))
-                    printTasks.addLast(Append("(${expr.operator.lexeme} "))
-                }
-
-                is Expr.Binary -> {
-                    printTasks.addLast(Append(")"))
-                    printTasks.addLast(Evaluate(expr.right))
-                    printTasks.addLast(Append(" "))
-                    printTasks.addLast(Evaluate(expr.left))
-                    printTasks.addLast(Append("(${expr.operator.lexeme} "))
-                }
-            }
-        }
+    fun next(): Token {
+        if (!isAtEnd()) current++
+        return previous()
     }
 
-    return output.toString()
+    fun match(vararg types: TokenType): Boolean {
+        for (type in types) {
+            if (check(type)) {
+                next()
+                return true
+            }
+        }
+
+        return false
+    }
+
+    // I know... I just don't want to make it objective and scatter all around the place
+    // it won't be null at the time of execution anyway
+    var equality: (() -> Expr)? = null
+
+    fun expression(): Expr {
+        return equality!!.invoke()
+    }
+
+    fun consume(type: TokenType, message: String) {
+        if (!check(type)) error(peek().toString() + message)
+        next()
+    }
+
+    fun primary(): Expr {
+        if (match(TokenType.FALSE)) return Expr.Literal(false)
+        if (match(TokenType.TRUE)) return Expr.Literal(true)
+        if (match(TokenType.NULL)) return Expr.Literal(null)
+
+        if (match(TokenType.INT_NUMBER, TokenType.FLOAT_NUMBER, TokenType.STRING)) {
+            return Expr.Literal(previous().literal)
+        }
+
+        if (match(TokenType.L_PAREN)) {
+            val expr = expression()
+            consume(TokenType.R_PAREN, "Expected ')' after expression.")
+            return Expr.Grouping(expr)
+        }
+
+        error("failed to match primary token and fallen through all the cases")
+    }
+
+    fun unary(): Expr {
+        if (match(TokenType.BANG, TokenType.MINUS)) {
+            val op = previous()
+            val right = unary()
+            return Expr.Unary(op, right)
+        }
+
+        return primary()
+    }
+
+    fun factor(): Expr {
+        var expr = unary()
+
+        while (match(TokenType.SLASH, TokenType.STAR)) {
+            val op = previous()
+            val right = unary()
+            expr = Expr.Binary(expr, op, right)
+        }
+
+        return expr
+    }
+
+    fun term(): Expr {
+        var expr = factor()
+
+        while (match(TokenType.MINUS, TokenType.PLUS)) {
+            val op = previous()
+            val right = factor()
+            expr = Expr.Binary(expr, op, right)
+        }
+
+        return expr
+    }
+
+    fun comparison(): Expr {
+        var expr = term()
+
+        while (match(TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL)) {
+            val op = previous()
+            val right = term()
+            expr = Expr.Binary(expr, op, right)
+        }
+
+        return expr
+    }
+
+    equality = {
+        var expr = comparison()
+
+        while (match(TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL)) {
+            val op = previous()
+            val right = comparison()
+            expr = Expr.Binary(expr, op, right)
+        }
+
+        expr
+    }
+
+    return expression()
 }

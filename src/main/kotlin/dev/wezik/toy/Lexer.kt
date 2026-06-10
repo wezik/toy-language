@@ -89,7 +89,7 @@ fun scan(source: String): List<Token> {
         tokenize(SLASH)
     }
 
-    fun doubleQuotesScanner() {
+    fun doubleQuoteScanner() {
         while (ctx.peek() != '"' && !ctx.isAtEnd()) ctx.advance()
         if (ctx.isAtEnd()) handleError(ctx.line, "Unterminated string.")
 
@@ -162,7 +162,7 @@ fun scan(source: String): List<Token> {
             ':' -> colonScanner()
             '?' -> questionScanner()
             '/' -> slashScanner()
-            '"' -> doubleQuotesScanner()
+            '"' -> doubleQuoteScanner()
 
             else -> when {
                 c.isDigit() -> digitScanner()

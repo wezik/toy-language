@@ -15,12 +15,12 @@ FOO :: "bar" // immutable, type inherited constant
 
 // structs
 Vec3 :: struct {
-    x: float // all types are non-null by default
+    x: float // all types are non-nullable by default
     y: float? // nullable
-    z: float = 0.3 // optional default
+    z: float = 0.3 // with default
 }
 
-// enums (extended, carrying values, not c style)
+// enums (extended, carrying values, c style or tagged unions in rust style)
 Direction :: enum(x: int, y: int) {
     NORTH(0, -1),
     EAST(1, 0),
@@ -47,8 +47,10 @@ Button :: struct {
 
 // -- Handling nullable types --
 
-// types by default are non nullable unless made so explicitly
-// they can be handled with regular checks or elvis operators
+/**
+  types by default are non nullable unless made so explicitly
+  they can be handled with regular checks or elvis operators
+**/
 
 nullable: string? = "some"
 if (nullable == null) {
@@ -64,6 +66,9 @@ nullable?.toUpperCase() // safe call
 
 // combined
 some_big_case := nullable?.toUpperCase() ?: "NONE"
+
+// Syntactic sugar
+x := 1_000_000.300_250_23
 
 // -- Maybe?? --
 // 1. async procedure coloring and structured concurrency

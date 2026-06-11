@@ -1,5 +1,6 @@
 package dev.wezik.toy
 
+import dev.wezik.toy.lexer.Token
 import dev.wezik.toy.lexer.scan
 import dev.wezik.toy.parser.parse
 import java.io.BufferedReader
@@ -35,8 +36,15 @@ fun run(source: String) {
     val tokens = scan(source)
     println("Tokens: ${tokens.joinToString(" ")}")
 
-    val expr = parse(tokens)
-    println("Expr: $expr")
+    val result = parse(tokens)
+    println("Expr: ${result.expr}")
+    for (e in result.errors) {
+        if (e.token?.type == Token.Type.EOF) {
+            System.err.println("[line ${e.token.line}] at the end: ${e.message}")
+        } else {
+            System.err.println("[line ${e.token?.line}:${e.token?.column}] at ${e.token?.text}: ${e.message}")
+        }
+    }
 
     // val result = interpret(expr)
     // println("Result: $result")

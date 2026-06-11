@@ -4,10 +4,13 @@ import dev.wezik.toy.lexer.Token
 import dev.wezik.toy.lexer.Token.Type.*
 import dev.wezik.toy.parser.Expr.*
 
+data class ParseError(val token: Token?, override val message: String) : RuntimeException()
+
 private class TokenContext(val tokens: List<Token>) {
     var current = 0
 
     fun peek(offset: Int = 0) = tokens.getOrNull(current + offset)
+    fun previous() = peek(-1) ?: throw ParseError(peek(), "(Parser problem) expected consumed token to still exist")
     fun isAtEnd() = peek()?.type == EOF
 
     fun advance(): Token {
@@ -38,7 +41,7 @@ private class TokenContext(val tokens: List<Token>) {
         var expr = comparison()
 
         while (match(BANG_EQUAL, EQUAL_EQUAL)) {
-            val op = peek(-1) ?: TODO()
+            val op = previous()
             val right = comparison()
             expr = Binary(expr, op, right)
         }
@@ -50,7 +53,7 @@ private class TokenContext(val tokens: List<Token>) {
         var expr = term()
 
         while (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
-            val op = peek(-1) ?: TODO()
+            val op = previous()
             val right = term()
             expr = Binary(expr, op, right)
         }
@@ -62,7 +65,7 @@ private class TokenContext(val tokens: List<Token>) {
         var expr = factor()
 
         while (match(MINUS, PLUS)) {
-            val op = peek(-1) ?: TODO()
+            val op = previous()
             val right = factor()
             expr = Binary(expr, op, right)
         }
@@ -74,7 +77,7 @@ private class TokenContext(val tokens: List<Token>) {
         var expr = unary()
 
         while (match(SLASH, STAR)) {
-            val op = peek(-1) ?: TODO()
+            val op = previous()
             val right = unary()
             expr = Binary(expr, op, right)
         }
@@ -84,7 +87,7 @@ private class TokenContext(val tokens: List<Token>) {
 
     fun unary(): Expr {
         while (match(BANG, MINUS)) {
-            val op = peek(-1) ?: TODO()
+            val op = previous()
             val right = unary()
             return Unary(op, right)
         }
@@ -100,23 +103,38 @@ private class TokenContext(val tokens: List<Token>) {
         }
 
         if (match(INT, DOUBLE, STRING)) {
-            val previous = peek(-1) ?: TODO()
+            val previous = previous()
             return when (val lit = previous.literal) {
                 is Token.Literal.IntValue -> Literal.IntValue(lit.value)
                 is Token.Literal.DoubleValue -> Literal.DoubleValue(lit.value)
                 is Token.Literal.StringValue -> Literal.StringValue(lit.value)
-                else -> TODO()
+                else -> throw ParseError(peek(), "(Parser problem) Expected literal to be handled.")
             }
         }
 
         if (match(L_PAREN)) {
             val expr = expression()
-            if (!match(R_PAREN)) TODO("Expected ')' after expression.")
+            if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' after expression.")
             return Grouping(expr)
         }
 
-        TODO()
+        throw ParseError(peek(), "Expected expression.")
     }
 }
 
-fun parse(tokens: List<Token>) = TokenContext(tokens).expression()
+data class ParseResult(
+    val expr: Expr?,
+    val errors: List<ParseError>,
+)
+
+fun parse(tokens: List<Token>): ParseResult {
+    var expr: Expr? = null
+    val errors = mutableListOf<ParseError>()
+
+    try {
+        expr = TokenContext(tokens).expression()
+    } catch (e: ParseError) {
+        errors += e
+    }
+    return ParseResult(expr, errors)
+}

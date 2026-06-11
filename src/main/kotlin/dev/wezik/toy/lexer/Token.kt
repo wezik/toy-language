@@ -28,6 +28,9 @@ data class Token(
         // OPERATORS
         CARET, MINUS, PERCENT, PLUS, STAR, SLASH,
 
+        // LOGICALS
+        AMP_AMP, PIPE_PIPE,
+
         // COMPARATORS
         BANG, BANG_EQUAL, EQUAL_EQUAL, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
 

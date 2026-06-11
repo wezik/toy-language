@@ -159,6 +159,18 @@ fun scan(source: String): List<Token> {
             '=' -> tokenize(if (match('=')) EQUAL_EQUAL else EQUAL)
             '<' -> tokenize(if (match('=')) LESS_EQUAL else LESS)
             '>' -> tokenize(if (match('=')) GREATER_EQUAL else GREATER)
+            '&' -> tokenize(
+                if (match('&')) AMP_AMP else {
+                    handleError(ctx.line, "Unexpected '&' did you mean '&&'?"); continue
+                }
+            )
+
+            '|' -> tokenize(
+                if (match('|')) PIPE_PIPE else {
+                    handleError(ctx.line, "Unexpected '|' did you mean '||'?"); continue
+                }
+            )
+
             '.' -> tokenize(if (match('.')) if (match('.')) TRIPLE_DOT else DOUBLE_DOT else DOT)
             ':' -> colonScanner()
             '?' -> questionScanner()

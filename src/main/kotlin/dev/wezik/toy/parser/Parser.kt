@@ -52,11 +52,30 @@ private class TokenContext(val tokens: List<Token>) {
     }
 
     fun expression(): Expr {
-        val expr = equality()
+        val expr = or()
         if (match(EQUAL)) {
             val value = expression()
             if (expr is Variable) return Assign(expr.name, value)
             throw ParseError(previous(), "Invalid assignment target.")
+        }
+
+        return expr
+    }
+
+    fun or(): Expr {
+        var expr = and()
+        while (match(PIPE_PIPE)) {
+            val op = previous()
+            expr = Logical(expr, op, and())
+        }
+        return expr
+    }
+
+    fun and(): Expr {
+        var expr = equality()
+        while (match(AMP_AMP)) {
+            val op = previous()
+            expr = Logical(expr, op, equality())
         }
         return expr
     }

@@ -55,14 +55,25 @@ private fun eval(expr: Expr, env: Environment): Any? = when (expr) {
     is Grouping -> eval(expr.expr, env)
     is Unary -> unary(expr, env)
     is Binary -> binary(expr, env)
-    is Assign -> {
-        val value = eval(expr.value, env)
-        env.assign(expr.name, value)
-        value
-    }
+    is Assign -> assign(expr, env)
+    is Logical -> logical(expr, env)
 }
 
 private fun Any?.isTruthy() = this != null && this != false
+
+private fun logical(expr: Logical, env: Environment): Any {
+    return when (expr.op.type) {
+        PIPE_PIPE -> eval(expr.left, env).isTruthy() || eval(expr.right, env).isTruthy()
+        AMP_AMP -> eval(expr.left, env).isTruthy() && eval(expr.right, env).isTruthy()
+        else -> throw EvalError(expr.op, "Unknown logical operator.")
+    }
+}
+
+private fun assign(expr: Assign, env: Environment): Any? {
+    val value = eval(expr.value, env)
+    env.assign(expr.name, value)
+    return value
+}
 
 private fun unary(expr: Unary, env: Environment): Any {
     val right = eval(expr.right, env)

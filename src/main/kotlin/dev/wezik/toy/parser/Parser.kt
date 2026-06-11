@@ -136,5 +136,5 @@ fun parse(tokens: List<Token>): ParseResult {
     } catch (e: ParseError) {
         errors += e
     }
-    return if (expr != null) ParseResult.Ok(expr) else ParseResult.Error(errors)
+    return expr?.let { ParseResult.Ok(it) } ?: ParseResult.Error(errors)
 }

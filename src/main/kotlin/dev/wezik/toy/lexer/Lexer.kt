@@ -3,7 +3,7 @@ package dev.wezik.toy.lexer
 import dev.wezik.toy.lexer.Token.Literal
 import dev.wezik.toy.lexer.Token.Type.*
 
-private data class SourceContext(val source: String) {
+private class SourceContext(val source: String) {
     var line = 1
     var current = 0
     var column = 1

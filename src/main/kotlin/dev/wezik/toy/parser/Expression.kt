@@ -3,8 +3,37 @@ package dev.wezik.toy.parser
 import dev.wezik.toy.lexer.Token
 
 sealed interface Expr {
-    data class Literal(val value: Token.Literal) : Expr
-    data class Grouping(val expr: Expr) : Expr
-    data class Unary(val op: Token, val right: Expr) : Expr
-    data class Binary(val left: Expr, val op: Token, val righ: Expr) : Expr
+    sealed interface Literal : Expr {
+        data class BoolValue(val value: Boolean) : Expr {
+            override fun toString() = "$value"
+        }
+
+        data class IntValue(val value: Int) : Expr {
+            override fun toString() = "$value"
+        }
+
+        data class DoubleValue(val value: Double) : Expr {
+            override fun toString() = "$value"
+        }
+
+        data class StringValue(val value: String) : Expr {
+            override fun toString() = "\"$value\""
+        }
+
+        object None : Expr {
+            override fun toString() = "none"
+        }
+    }
+
+    data class Grouping(val expr: Expr) : Expr {
+        override fun toString() = "($expr)"
+    }
+
+    data class Unary(val op: Token, val right: Expr) : Expr {
+        override fun toString() = "${op.text} $right"
+    }
+
+    data class Binary(val left: Expr, val op: Token, val right: Expr) : Expr {
+        override fun toString() = "(${op.text} $left $right)"
+    }
 }

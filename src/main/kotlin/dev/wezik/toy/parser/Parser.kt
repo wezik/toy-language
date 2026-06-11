@@ -122,10 +122,10 @@ private class TokenContext(val tokens: List<Token>) {
     }
 }
 
-data class ParseResult(
-    val expr: Expr?,
-    val errors: List<ParseError>,
-)
+sealed interface ParseResult {
+    data class Ok(val expr: Expr) : ParseResult
+    data class Error(val errors: List<ParseError>) : ParseResult
+}
 
 fun parse(tokens: List<Token>): ParseResult {
     var expr: Expr? = null
@@ -136,5 +136,5 @@ fun parse(tokens: List<Token>): ParseResult {
     } catch (e: ParseError) {
         errors += e
     }
-    return ParseResult(expr, errors)
+    return if (expr != null) ParseResult.Ok(expr) else ParseResult.Error(errors)
 }

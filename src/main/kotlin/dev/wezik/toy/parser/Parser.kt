@@ -51,7 +51,15 @@ private class TokenContext(val tokens: List<Token>) {
         }
     }
 
-    fun expression() = equality()
+    fun expression(): Expr {
+        val expr = equality()
+        if (match(EQUAL)) {
+            val value = expression()
+            if (expr is Variable) return Assign(expr.name, value)
+            throw ParseError(previous(), "Invalid assignment target.")
+        }
+        return expr
+    }
 
     fun equality(): Expr {
         var expr = comparison()

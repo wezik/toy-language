@@ -28,7 +28,7 @@ fun interpret(stmts: List<Stmt>, env: Environment = Environment()): InterpretRes
 private fun exec(stmt: Stmt, env: Environment) {
     when (stmt) {
         is Stmt.Expression -> eval(stmt.expr, env)
-        is Stmt.VarDecl -> env.declare(stmt.name.text, eval(stmt.intializer, env), stmt.mutable)
+        is Stmt.VarDecl -> env.declare(stmt.name, eval(stmt.intializer, env), stmt.mutable)
         is Stmt.Print -> println(
             eval(stmt.expr, env) ?: "null"
         ) // TODO: remove once native function calls are supported
@@ -45,6 +45,11 @@ private fun eval(expr: Expr, env: Environment): Any? = when (expr) {
     is Grouping -> eval(expr.expr, env)
     is Unary -> unary(expr, env)
     is Binary -> binary(expr, env)
+    is Assign -> {
+        val value = eval(expr.value, env)
+        env.assign(expr.name, value)
+        value
+    }
 }
 
 private fun Any?.isTruthy() = this != null && this != false

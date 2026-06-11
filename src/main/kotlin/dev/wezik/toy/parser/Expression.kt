@@ -40,4 +40,8 @@ sealed interface Expr {
     data class Variable(val name: Token) : Expr {
         override fun toString() = name.text
     }
+
+    data class Assign(val name: Token, val value: Expr) : Expr {
+        override fun toString() = "${name.text} = $value"
+    }
 }

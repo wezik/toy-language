@@ -13,8 +13,19 @@ class Environment(private val parent: Environment? = null) {
         return parent?.get(name) ?: throw EvalError(name, "Undefined variable '${name.text}'.")
     }
 
-    fun declare(name: String, value: Any?, mutable: Boolean) {
-        // simplified declaration for now, no mutability or assignments
-        bindings[name] = Binding(value, mutable)
+    fun declare(name: Token, value: Any?, mutable: Boolean) {
+        bindings[name.text] = Binding(value, mutable)
+    }
+
+    fun assign(name: Token, value: Any?) {
+        if (name.text in bindings) {
+            if (!bindings[name.text]!!.mutable) {
+                throw EvalError(name, "Cannot assign to immutable '${name.text}'.")
+            }
+
+            bindings[name.text] = Binding(value, mutable = true)
+            return
+        }
+        parent?.assign(name, value) ?: throw EvalError(name, "Undefined variable '${name.text}'.")
     }
 }

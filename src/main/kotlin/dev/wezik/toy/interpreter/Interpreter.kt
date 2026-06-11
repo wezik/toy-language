@@ -4,41 +4,53 @@ import dev.wezik.toy.lexer.Token
 import dev.wezik.toy.lexer.Token.Type.*
 import dev.wezik.toy.parser.Expr
 import dev.wezik.toy.parser.Expr.*
+import dev.wezik.toy.parser.Stmt
 
 data class EvalError(val token: Token?, override val message: String) : RuntimeException()
 
-sealed interface EvalResult {
-    data class Ok(val value: Any?) : EvalResult
-    data class Error(val errors: List<EvalError>) : EvalResult
+sealed interface InterpretResult {
+    object Ok : InterpretResult
+    data class Error(val errors: List<EvalError>) : InterpretResult
 }
 
-fun interpret(expr: Expr): EvalResult {
+fun interpret(stmts: List<Stmt>, env: Environment = Environment()): InterpretResult {
     val errors = mutableListOf<EvalError>()
-    // For now Any? as I am not sure how to utilize the type system in here
-    var value: Any? = null
-    try {
-        value = eval(expr)
-    } catch (e: EvalError) {
-        errors += e
+    for (stmt in stmts) {
+        try {
+            exec(stmt, env)
+        } catch (e: EvalError) {
+            errors += e
+        }
     }
-    return if (errors.isEmpty()) EvalResult.Ok(value) else EvalResult.Error(errors)
+    return if (errors.isEmpty()) InterpretResult.Ok else InterpretResult.Error(errors)
 }
 
-private fun eval(expr: Expr): Any? = when (expr) {
+private fun exec(stmt: Stmt, env: Environment) {
+    when (stmt) {
+        is Stmt.Expression -> eval(stmt.expr, env)
+        is Stmt.VarDecl -> env.declare(stmt.name.text, eval(stmt.intializer, env), stmt.mutable)
+        is Stmt.Print -> println(
+            eval(stmt.expr, env) ?: "null"
+        ) // TODO: remove once native function calls are supported
+    }
+}
+
+private fun eval(expr: Expr, env: Environment): Any? = when (expr) {
     is Literal.BoolValue -> expr.value
     is Literal.IntValue -> expr.value
     is Literal.DoubleValue -> expr.value
     is Literal.StringValue -> expr.value
     is Literal.Null -> null
-    is Grouping -> eval(expr.expr)
-    is Unary -> unary(expr)
-    is Binary -> binary(expr)
+    is Variable -> env.get(expr.name)
+    is Grouping -> eval(expr.expr, env)
+    is Unary -> unary(expr, env)
+    is Binary -> binary(expr, env)
 }
 
 private fun Any?.isTruthy() = this != null && this != false
 
-private fun unary(expr: Unary): Any {
-    val right = eval(expr.right)
+private fun unary(expr: Unary, env: Environment): Any {
+    val right = eval(expr.right, env)
     return when (expr.op.type) {
         BANG -> !right.isTruthy()
         MINUS -> when (right) {
@@ -51,9 +63,9 @@ private fun unary(expr: Unary): Any {
     }
 }
 
-private fun binary(expr: Binary): Any {
-    val left = eval(expr.left)
-    val right = eval(expr.right)
+private fun binary(expr: Binary, env: Environment): Any {
+    val left = eval(expr.left, env)
+    val right = eval(expr.right, env)
 
     fun numericOp(intOp: (Int, Int) -> Any, doubleOp: (Double, Double) -> Any): Any = when {
         left is Int && right is Int -> intOp(left, right)
@@ -78,6 +90,11 @@ private fun binary(expr: Binary): Any {
         BANG_EQUAL -> left != right
         PLUS -> when {
             left is String && right is String -> left + right
+            left is String || right is String -> throw EvalError(
+                expr.op,
+                "${expr.op.text} cannot mix String with other types."
+            )
+
             else -> numericOp(Int::plus, Double::plus)
         }
 

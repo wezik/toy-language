@@ -36,4 +36,8 @@ sealed interface Expr {
     data class Binary(val left: Expr, val op: Token, val right: Expr) : Expr {
         override fun toString() = "(${op.text} $left $right)"
     }
+
+    data class Variable(val name: Token) : Expr {
+        override fun toString() = name.text
+    }
 }

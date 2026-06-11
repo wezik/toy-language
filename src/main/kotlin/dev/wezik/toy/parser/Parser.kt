@@ -6,6 +6,11 @@ import dev.wezik.toy.parser.Expr.*
 
 data class ParseError(val token: Token?, override val message: String) : RuntimeException()
 
+sealed interface ParseResult {
+    data class Ok(val stmts: List<Stmt>) : ParseResult
+    data class Error(val errors: List<ParseError>) : ParseResult
+}
+
 private class TokenContext(val tokens: List<Token>) {
     var current = 0
 
@@ -112,6 +117,8 @@ private class TokenContext(val tokens: List<Token>) {
             }
         }
 
+        if (match(IDENTIFIER)) return Variable(previous())
+
         if (match(L_PAREN)) {
             val expr = expression()
             if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' after expression.")
@@ -120,21 +127,38 @@ private class TokenContext(val tokens: List<Token>) {
 
         throw ParseError(peek(), "Expected expression.")
     }
-}
 
-sealed interface ParseResult {
-    data class Ok(val expr: Expr) : ParseResult
-    data class Error(val errors: List<ParseError>) : ParseResult
+    fun declaration(): Stmt {
+        if (peek()?.type == IDENTIFIER && peek(1)?.type == COLON_EQUAL) {
+            val name = advance() // identifier
+            advance() // :=
+            return Stmt.VarDecl(name, expression(), mutable = true)
+        }
+
+        if (peek()?.type == IDENTIFIER && peek(1)?.type == DOUBLE_COLON) {
+            val name = advance() // identifier
+            advance() // ::
+            return Stmt.VarDecl(name, expression(), mutable = false)
+        }
+
+        // TODO: remove once native function calls are supported
+        if (match(PRINT)) return Stmt.Print(expression())
+
+        return Stmt.Expression(expression())
+    }
 }
 
 fun parse(tokens: List<Token>): ParseResult {
-    var expr: Expr? = null
-    val errors = mutableListOf<ParseError>()
+    val stmts = mutableListOf<Stmt>()
+    val ctx = TokenContext(tokens)
 
-    try {
-        expr = TokenContext(tokens).expression()
-    } catch (e: ParseError) {
-        errors += e
+    while (!ctx.isAtEnd()) {
+        try {
+            stmts += ctx.declaration()
+        } catch (e: ParseError) {
+            return ParseResult.Error(listOf(e)) // For now no error recovery
+        }
     }
-    return expr?.let { ParseResult.Ok(it) } ?: ParseResult.Error(errors)
+
+    return ParseResult.Ok(stmts)
 }

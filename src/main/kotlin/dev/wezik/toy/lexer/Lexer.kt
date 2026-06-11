@@ -131,6 +131,7 @@ fun scan(source: String): List<Token> {
             "return" -> RETURN
             "struct" -> STRUCT
             "true" -> TRUE
+            "print" -> PRINT // TODO: remove once native function calls are supported
             else -> IDENTIFIER
         }
         tokenize(type)

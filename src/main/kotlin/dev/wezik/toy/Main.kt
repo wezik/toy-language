@@ -1,6 +1,7 @@
 package dev.wezik.toy
 
-import dev.wezik.toy.interpreter.EvalResult
+import dev.wezik.toy.interpreter.Environment
+import dev.wezik.toy.interpreter.InterpretResult
 import dev.wezik.toy.interpreter.interpret
 import dev.wezik.toy.lexer.Token
 import dev.wezik.toy.lexer.scan
@@ -11,10 +12,11 @@ import java.io.File
 import java.io.InputStreamReader
 
 fun main(args: Array<String>) {
-    if (args.isEmpty()) runInteractive() else runFile(args[0])
+    val env = Environment()
+    if (args.isEmpty()) runInteractive(env) else runFile(args[0], env)
 }
 
-fun runInteractive() {
+fun runInteractive(env: Environment) {
     val input = InputStreamReader(System.`in`)
     val reader = BufferedReader(input)
 
@@ -25,20 +27,22 @@ fun runInteractive() {
 
     while (true) {
         val line = reader.readWithPrompt() ?: break
-        run(line)
+        run(line, env)
     }
 }
 
-fun runFile(filePath: String) {
+fun runFile(filePath: String, env: Environment) {
     val bytes = File(filePath).readBytes()
-    run(String(bytes))
+    run(String(bytes), env)
     // if (scannerContext.hadError) exitProcess(65)
 }
 
-fun run(source: String) {
+fun run(source: String, env: Environment) {
+    // tokenize
     val tokens = scan(source)
-    println("Tokens: ${tokens.joinToString(" ")}")
+    // println("Tokens: ${tokens.joinToString(" ")}")
 
+    // parse
     val parseResult = parse(tokens)
     if (parseResult is ParseResult.Error) {
         for (e in parseResult.errors) {
@@ -53,11 +57,12 @@ fun run(source: String) {
 
     // force the type
     if (parseResult !is ParseResult.Ok) error("???")
-    println("Expr: ${parseResult.expr}")
+    // println("Expr: ${parseResult.expr}")
 
-    val evalResult = interpret(parseResult.expr)
-    if (evalResult is EvalResult.Error) {
-        for (e in evalResult.errors) {
+    // interpret
+    val interpretResult = interpret(parseResult.stmts, env)
+    if (interpretResult is InterpretResult.Error) {
+        for (e in interpretResult.errors) {
             if (e.token?.type == Token.Type.EOF) {
                 System.err.println("[line ${e.token.line}] at the end: ${e.message}")
             } else {
@@ -68,6 +73,5 @@ fun run(source: String) {
     }
 
     // force the type
-    if (evalResult !is EvalResult.Ok) error("???")
-    println("Result: ${evalResult.value ?: "null"}")
+    if (interpretResult !is InterpretResult.Ok) error("???")
 }

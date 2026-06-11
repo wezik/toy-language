@@ -37,6 +37,9 @@ data class Token(
         // RESERVED WORDS
         ELSE, ENUM, FALSE, FOR, IF, NULL, RETURN, STRUCT, TRUE,
 
+        // TODO: remove once native function calls are supported
+        PRINT,
+
         EOF,
     }
 

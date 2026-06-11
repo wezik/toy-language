@@ -96,7 +96,7 @@ private class TokenContext(val tokens: List<Token>) {
         when {
             match(FALSE) -> return Literal.BoolValue(false)
             match(TRUE) -> return Literal.BoolValue(true)
-            match(NULL) -> return Literal.None
+            match(NULL) -> return Literal.Null
         }
 
         if (match(INT, DOUBLE, STRING)) {

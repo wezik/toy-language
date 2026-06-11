@@ -20,8 +20,8 @@ sealed interface Expr {
             override fun toString() = "\"$value\""
         }
 
-        object None : Expr {
-            override fun toString() = "none"
+        object Null : Expr {
+            override fun toString() = "null"
         }
     }
 

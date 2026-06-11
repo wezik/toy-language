@@ -40,6 +40,17 @@ private class TokenContext(val tokens: List<Token>) {
 
     // parser handling
 
+    fun synchronize() {
+        advance() // discard the bad token
+        while (!isAtEnd()) {
+            when (peek()?.type) {
+                // sync points
+                IF, FOR, RETURN, PRINT -> return
+                else -> advance() // discard until sync point occurs
+            }
+        }
+    }
+
     fun expression() = equality()
 
     fun equality(): Expr {
@@ -150,15 +161,17 @@ private class TokenContext(val tokens: List<Token>) {
 
 fun parse(tokens: List<Token>): ParseResult {
     val stmts = mutableListOf<Stmt>()
+    val errors = mutableListOf<ParseError>()
     val ctx = TokenContext(tokens)
 
     while (!ctx.isAtEnd()) {
         try {
             stmts += ctx.declaration()
         } catch (e: ParseError) {
-            return ParseResult.Error(listOf(e)) // For now no error recovery
+            errors += e
+            ctx.synchronize()
         }
     }
 
-    return ParseResult.Ok(stmts)
+    return if (errors.isEmpty()) ParseResult.Ok(stmts) else ParseResult.Error(errors)
 }

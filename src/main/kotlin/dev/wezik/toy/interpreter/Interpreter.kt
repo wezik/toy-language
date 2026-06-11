@@ -34,6 +34,12 @@ private fun exec(stmt: Stmt, env: Environment) {
             val child = Environment(env)
             for (s in stmt.stmts) exec(s, child)
         }
+
+        is If -> {
+            if (eval(stmt.condition, env).isTruthy()) exec(stmt.then, env)
+            else stmt.or?.let { exec(it, env) }
+        }
+
         // TODO: remove once native function calls are supported
         is Print -> println(eval(stmt.expr, env) ?: "null")
     }

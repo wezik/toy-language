@@ -13,6 +13,8 @@ sealed interface Stmt {
 
     data class Block(val stmts: List<Stmt>) : Stmt
 
+    data class If(val condition: Expr, val then: Stmt, val or /* else */: Stmt?) : Stmt
+
     // TODO: remove once native function calls are supported
     data class Print(val expr: Expr) : Stmt
 }

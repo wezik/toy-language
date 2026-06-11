@@ -174,10 +174,6 @@ private class TokenContext(val tokens: List<Token>) {
         }
     }
 
-    fun ifStatement(): Stmt {
-        throw ParseError(previous(), "Not implemented.")
-    }
-
     fun block(): List<Stmt> {
         val stmts = mutableListOf<Stmt>()
         while (peek()?.type != R_BRACE && !isAtEnd()) {
@@ -185,6 +181,13 @@ private class TokenContext(val tokens: List<Token>) {
         }
         if (!match(R_BRACE)) throw ParseError(peek(), "Expected '}' after block.")
         return stmts
+    }
+
+    fun ifStatement(): Stmt {
+        val condition = expression()
+        val then = statement()
+        val or = if (match(ELSE)) statement() else null
+        return Stmt.If(condition, then, or)
     }
 
 }

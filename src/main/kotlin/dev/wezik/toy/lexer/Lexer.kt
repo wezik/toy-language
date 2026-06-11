@@ -1,7 +1,7 @@
-package dev.wezik.toy
+package dev.wezik.toy.lexer
 
-import dev.wezik.toy.Token.Literal
-import dev.wezik.toy.Token.Type.*
+import dev.wezik.toy.lexer.Token.Literal
+import dev.wezik.toy.lexer.Token.Type.*
 
 private data class SourceContext(val source: String) {
     var line = 1

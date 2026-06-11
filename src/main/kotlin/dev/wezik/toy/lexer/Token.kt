@@ -1,4 +1,4 @@
-package dev.wezik.toy
+package dev.wezik.toy.lexer
 
 /**
  * Token produced by the lexer

@@ -4,23 +4,23 @@ import dev.wezik.toy.lexer.Token
 
 sealed interface Expr {
     sealed interface Literal : Expr {
-        data class BoolValue(val value: Boolean) : Expr {
+        data class BoolValue(val value: Boolean) : Literal {
             override fun toString() = "$value"
         }
 
-        data class IntValue(val value: Int) : Expr {
+        data class IntValue(val value: Int) : Literal {
             override fun toString() = "$value"
         }
 
-        data class DoubleValue(val value: Double) : Expr {
+        data class DoubleValue(val value: Double) : Literal {
             override fun toString() = "$value"
         }
 
-        data class StringValue(val value: String) : Expr {
+        data class StringValue(val value: String) : Literal {
             override fun toString() = "\"$value\""
         }
 
-        object Null : Expr {
+        object Null : Literal {
             override fun toString() = "null"
         }
     }

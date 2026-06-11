@@ -160,11 +160,33 @@ private class TokenContext(val tokens: List<Token>) {
             return Stmt.VarDecl(name, expression(), mutable = false)
         }
 
-        // TODO: remove once native function calls are supported
-        if (match(PRINT)) return Stmt.Print(expression())
 
-        return Stmt.Expression(expression())
+        return statement()
     }
+
+    fun statement(): Stmt {
+        return when {
+            match(IF) -> ifStatement()
+            match(L_BRACE) -> Stmt.Block(block())
+            // TODO: remove once native function calls are supported
+            match(PRINT) -> Stmt.Print(expression())
+            else -> Stmt.Expression(expression())
+        }
+    }
+
+    fun ifStatement(): Stmt {
+        throw ParseError(previous(), "Not implemented.")
+    }
+
+    fun block(): List<Stmt> {
+        val stmts = mutableListOf<Stmt>()
+        while (peek()?.type != R_BRACE && !isAtEnd()) {
+            stmts += declaration()
+        }
+        if (!match(R_BRACE)) throw ParseError(peek(), "Expected '}' after block.")
+        return stmts
+    }
+
 }
 
 fun parse(tokens: List<Token>): ParseResult {

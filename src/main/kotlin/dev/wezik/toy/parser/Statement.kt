@@ -11,6 +11,8 @@ sealed interface Stmt {
         val mutable: Boolean,
     ) : Stmt
 
+    data class Block(val stmts: List<Stmt>) : Stmt
+
     // TODO: remove once native function calls are supported
     data class Print(val expr: Expr) : Stmt
 }

@@ -5,6 +5,7 @@ import dev.wezik.toy.lexer.Token.Type.*
 import dev.wezik.toy.parser.Expr
 import dev.wezik.toy.parser.Expr.*
 import dev.wezik.toy.parser.Stmt
+import dev.wezik.toy.parser.Stmt.*
 
 data class EvalError(val token: Token?, override val message: String) : RuntimeException()
 
@@ -27,11 +28,14 @@ fun interpret(stmts: List<Stmt>, env: Environment = Environment()): InterpretRes
 
 private fun exec(stmt: Stmt, env: Environment) {
     when (stmt) {
-        is Stmt.Expression -> eval(stmt.expr, env)
-        is Stmt.VarDecl -> env.declare(stmt.name, eval(stmt.intializer, env), stmt.mutable)
-        is Stmt.Print -> println(
-            eval(stmt.expr, env) ?: "null"
-        ) // TODO: remove once native function calls are supported
+        is Expression -> eval(stmt.expr, env)
+        is VarDecl -> env.declare(stmt.name, eval(stmt.intializer, env), stmt.mutable)
+        is Block -> {
+            val child = Environment(env)
+            for (s in stmt.stmts) exec(s, child)
+        }
+        // TODO: remove once native function calls are supported
+        is Print -> println(eval(stmt.expr, env) ?: "null")
     }
 }
 

@@ -1,6 +1,7 @@
 package dev.wezik.toy.parser
 
 import dev.wezik.toy.lexer.Token
+import dev.wezik.toy.parser.TypeExpr
 
 sealed interface Stmt {
     data class Expression(val expr: Expr) : Stmt
@@ -9,6 +10,7 @@ sealed interface Stmt {
         val name: Token,
         val intializer: Expr,
         val mutable: Boolean,
+        val typeAnnotation: TypeExpr? = null,
     ) : Stmt
 
     data class Block(val stmts: List<Stmt>) : Stmt

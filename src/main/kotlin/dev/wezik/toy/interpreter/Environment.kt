@@ -13,8 +13,10 @@ class Environment(private val parent: Environment? = null) {
         return parent?.get(name) ?: throw EvalError(name, "Undefined variable '${name.text}'.")
     }
 
-    fun declare(name: Token, value: Any?, mutable: Boolean) {
-        bindings[name.text] = Binding(value, mutable)
+    fun declare(name: Token, value: Any?, mutable: Boolean) = declare(name.text, value, mutable)
+
+    fun declare(name: String, value: Any?, mutable: Boolean) {
+        bindings[name] = Binding(value, mutable)
     }
 
     fun assign(name: Token, value: Any?) {

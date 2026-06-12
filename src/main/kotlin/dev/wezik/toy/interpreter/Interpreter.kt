@@ -17,11 +17,11 @@ sealed interface InterpretResult {
 
 private class ReturnValue(val value: Any?) : Throwable(null, null, true, false)
 
-private class NativeFunction(val arity: Int, val fn: (List<Any?>) -> Any?) {
+class NativeFunction(val arity: Int, val fn: (List<Any?>) -> Any?) {
     override fun toString() = "<native fn>"
 }
 
-private class UserFunction(
+class UserFunction(
     val params: List<Param>,
     val body: List<Stmt>,
     val closure: Environment,

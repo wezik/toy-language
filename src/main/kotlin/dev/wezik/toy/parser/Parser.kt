@@ -254,10 +254,17 @@ private class TokenContext(val tokens: List<Token>) {
     }
 
     fun parseType(): TypeExpr {
+        val base = parseBaseType()
+        return if (match(QUESTION)) TypeExpr.Nullable(base) else base
+    }
+
+    fun parseBaseType(): TypeExpr {
         if (match(L_PAREN)) {
             val params = mutableListOf<TypeExpr>()
             if (peek()?.type != R_PAREN) {
-                do { params += parseType() } while (match(COMMA))
+                do {
+                    params += parseType()
+                } while (match(COMMA))
             }
             if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' in function type.")
             if (!match(ARROW)) throw ParseError(peek(), "Expected '->' in function type.")

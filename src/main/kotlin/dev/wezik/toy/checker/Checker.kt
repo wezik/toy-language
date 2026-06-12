@@ -51,6 +51,8 @@ private fun resolve(expr: TypeExpr): Type = when (expr) {
         // For now null later, we might need explicit Unit type for function without return values
         expr.returns?.let(::resolve) ?: Type.NullT
     )
+
+    is TypeExpr.Nullable -> Type.Nullable(resolve(expr.inner))
 }
 
 private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
@@ -207,7 +209,15 @@ private fun check(stmt: Stmt, env: TypeEnv, returnType: Type? = null) {
     }
 }
 
-private fun assignable(from: Type, to: Type): Boolean = from == to || from == Type.AnyT || to == Type.AnyT
+private fun assignable(from: Type, to: Type): Boolean {
+    val rules = listOf(
+        from == to,
+        from == AnyT || to == AnyT,
+        to is Type.Nullable && from == NullT,
+        to is Type.Nullable && assignable(from, to.inner),
+    )
+    return rules.any { it }
+}
 
 private fun tokenOf(expr: Expr): Token? = when (expr) {
     is Expr.Variable -> expr.name

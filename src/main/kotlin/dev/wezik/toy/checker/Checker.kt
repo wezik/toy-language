@@ -186,8 +186,9 @@ private fun check(stmt: Stmt, env: TypeEnv, returnType: Type? = null) {
         }
 
         is Stmt.If -> {
+            val narrowedEnv = narrow(stmt.condition, env)
             typeOf(stmt.condition, env)
-            check(stmt.then, env, returnType)
+            check(stmt.then, narrowedEnv, returnType)
             stmt.or?.let { check(it, env, returnType) }
         }
 
@@ -227,4 +228,32 @@ private fun tokenOf(expr: Expr): Token? = when (expr) {
     is Expr.Unary -> expr.op
     is Expr.Logical -> expr.op
     else -> null
+}
+
+private fun narrow(condition: Expr, env: TypeEnv): TypeEnv {
+    // for now only support `x != null` narrowing
+    // TODO: figure out some good meta-programming pattern for "assuming" types
+    if (condition is Expr.Binary && condition.op.type == BANG_EQUAL) {
+        val left = condition.left
+        val right = condition.right
+        if (right is Expr.Literal.Null && left is Expr.Variable) {
+            val declared = runCatching { env.get(left.name) }.getOrNull()
+            if (declared is Type.Nullable) {
+                val child = TypeEnv(env)
+                child.declare(left.name.text, declared.inner) // unwrap
+                return child
+            }
+        }
+        // also the reverse
+        if (left is Expr.Literal.Null && right is Expr.Variable) {
+            val declared = runCatching { env.get(right.name) }.getOrNull()
+            if (declared is Type.Nullable) {
+                val child = TypeEnv(env)
+                child.declare(right.name.text, declared.inner) // unwrap
+                return child
+            }
+        }
+    }
+
+    return env
 }

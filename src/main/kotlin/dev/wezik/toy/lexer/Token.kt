@@ -38,7 +38,7 @@ data class Token(
         L_PAREN, R_PAREN, L_BRACE, R_BRACE, L_BRACKET, R_BRACKET,
 
         // RESERVED WORDS
-        ELSE, ENUM, FALSE, FOR, IF, NULL, RETURN, STRUCT, TRUE,
+        ELSE, ENUM, FALSE, FOR, IF, NULL, RETURN, STRUCT, TRUE, WHILE,
 
         // TODO: remove once native function calls are supported
         PRINT,

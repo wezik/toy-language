@@ -45,7 +45,7 @@ private class TokenContext(val tokens: List<Token>) {
         while (!isAtEnd()) {
             when (peek()?.type) {
                 // sync points
-                IF, FOR, RETURN, PRINT -> return
+                IF, FOR, RETURN, WHILE, PRINT -> return
                 else -> advance() // discard until sync point occurs
             }
         }
@@ -183,16 +183,6 @@ private class TokenContext(val tokens: List<Token>) {
         return statement()
     }
 
-    fun statement(): Stmt {
-        return when {
-            match(IF) -> ifStatement()
-            match(L_BRACE) -> Stmt.Block(block())
-            // TODO: remove once native function calls are supported
-            match(PRINT) -> Stmt.Print(expression())
-            else -> Stmt.Expression(expression())
-        }
-    }
-
     fun block(): List<Stmt> {
         val stmts = mutableListOf<Stmt>()
         while (peek()?.type != R_BRACE && !isAtEnd()) {
@@ -202,11 +192,28 @@ private class TokenContext(val tokens: List<Token>) {
         return stmts
     }
 
+    fun statement(): Stmt {
+        return when {
+            match(IF) -> ifStatement()
+            match(WHILE) -> whileStatement()
+            match(L_BRACE) -> Stmt.Block(block())
+            // TODO: remove once native function calls are supported
+            match(PRINT) -> Stmt.Print(expression())
+            else -> Stmt.Expression(expression())
+        }
+    }
+
     fun ifStatement(): Stmt {
         val condition = expression()
         val then = statement()
         val or = if (match(ELSE)) statement() else null
         return Stmt.If(condition, then, or)
+    }
+
+    fun whileStatement(): Stmt {
+        val condition = expression()
+        val then = statement()
+        return Stmt.While(condition, then)
     }
 
 }

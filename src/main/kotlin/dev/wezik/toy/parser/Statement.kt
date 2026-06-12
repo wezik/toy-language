@@ -15,6 +15,8 @@ sealed interface Stmt {
 
     data class If(val condition: Expr, val then: Stmt, val or /* else */: Stmt?) : Stmt
 
+    data class While(val condition: Expr, val then: Stmt) : Stmt
+
     // TODO: remove once native function calls are supported
     data class Print(val expr: Expr) : Stmt
 }

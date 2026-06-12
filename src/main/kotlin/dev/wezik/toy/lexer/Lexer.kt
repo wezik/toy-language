@@ -131,6 +131,7 @@ fun scan(source: String): List<Token> {
             "return" -> RETURN
             "struct" -> STRUCT
             "true" -> TRUE
+            "while" -> WHILE
             "print" -> PRINT // TODO: remove once native function calls are supported
             else -> IDENTIFIER
         }
@@ -159,6 +160,12 @@ fun scan(source: String): List<Token> {
             '=' -> tokenize(if (match('=')) EQUAL_EQUAL else EQUAL)
             '<' -> tokenize(if (match('=')) LESS_EQUAL else LESS)
             '>' -> tokenize(if (match('=')) GREATER_EQUAL else GREATER)
+            '.' -> tokenize(if (match('.')) if (match('.')) TRIPLE_DOT else DOUBLE_DOT else DOT)
+            ':' -> colonScanner()
+            '?' -> questionScanner()
+            '/' -> slashScanner()
+            '"' -> doubleQuoteScanner()
+
             '&' -> tokenize(
                 if (match('&')) AMP_AMP else {
                     handleError(ctx.line, "Unexpected '&' did you mean '&&'?"); continue
@@ -170,12 +177,6 @@ fun scan(source: String): List<Token> {
                     handleError(ctx.line, "Unexpected '|' did you mean '||'?"); continue
                 }
             )
-
-            '.' -> tokenize(if (match('.')) if (match('.')) TRIPLE_DOT else DOUBLE_DOT else DOT)
-            ':' -> colonScanner()
-            '?' -> questionScanner()
-            '/' -> slashScanner()
-            '"' -> doubleQuoteScanner()
 
             else -> when {
                 c.isDigit() -> digitScanner()

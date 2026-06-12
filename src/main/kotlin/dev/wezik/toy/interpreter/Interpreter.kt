@@ -40,6 +40,8 @@ private fun exec(stmt: Stmt, env: Environment) {
             else stmt.or?.let { exec(it, env) }
         }
 
+        is While -> while (eval(stmt.condition, env).isTruthy()) exec(stmt.then, env)
+
         // TODO: remove once native function calls are supported
         is Print -> println(eval(stmt.expr, env) ?: "null")
     }

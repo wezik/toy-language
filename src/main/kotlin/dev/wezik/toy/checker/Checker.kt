@@ -7,7 +7,7 @@ import dev.wezik.toy.parser.Expr
 import dev.wezik.toy.parser.Stmt
 import dev.wezik.toy.parser.TypeExpr
 
-class TypeError(val name: Token, override val message: String) : RuntimeException()
+class TypeError(val name: Token?, override val message: String) : RuntimeException()
 
 class TypeEnv(private val parent: TypeEnv? = null) {
     private val types = mutableMapOf<String, Type>()
@@ -65,8 +65,42 @@ private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
     is Expr.Unary -> unaryType(expr, env)
     is Expr.Logical -> logicalType(expr, env)
     is Expr.Assign -> assignType(expr, env)
-    is Expr.Call -> TODO()
-    is Expr.FunLiteral -> TODO()
+    is Expr.FunLiteral -> funLiteralType(expr, env)
+    is Expr.Call -> callType(expr, env)
+}
+
+private fun callType(expr: Expr.Call, env: TypeEnv): Type {
+    val calleeType = typeOf(expr.callee, env)
+    if (calleeType !is FunctionT && calleeType != AnyT) {
+        throw TypeError(expr.paren, "Value of type $calleeType is not callable.")
+    }
+    if (calleeType == AnyT) return AnyT // TODO: temp escape hatch
+
+    val fn = calleeType as FunctionT
+    if (expr.args.size != fn.params.size) {
+        throw TypeError(expr.paren, "Expected ${fn.params.size} args, got ${expr.args.size}.")
+    }
+
+    expr.args.zip(fn.params).forEach { (arg, expected) ->
+        val actual = typeOf(arg, env)
+        if (!assignable(from = actual, to = expected)) {
+            throw TypeError(tokenOf(arg), "Argument type mismatch: expected $expected, got $actual.")
+        }
+    }
+    return fn.returns
+}
+
+private fun funLiteralType(expr: Expr.FunLiteral, env: TypeEnv): Type {
+    val paramTypes = expr.params.map { resolve(it.type) }
+    val returnType = expr.returnType?.let(::resolve) ?: NullT
+    val fnEnv = TypeEnv(env)
+    expr.params.zip(paramTypes).forEach { (param, type) ->
+        fnEnv.declare(param.name.text, type)
+    }
+
+    for (s in expr.body) check(s, fnEnv, returnType)
+
+    return FunctionT(paramTypes, returnType)
 }
 
 private fun assignType(expr: Expr.Assign, env: TypeEnv): Type {
@@ -94,7 +128,7 @@ private fun unaryType(expr: Expr.Unary, env: TypeEnv): Type {
 
         MINUS -> {
             val type = typeOf(expr.right, env)
-            if (!type.isNumber()) throw TypeError(expr.op, "'-' requires a number, got $t.")
+            if (!type.isNumber()) throw TypeError(expr.op, "'-' requires a number, got $type.")
             type
         }
 
@@ -132,7 +166,7 @@ private fun binaryType(expr: Expr.Binary, env: TypeEnv): Type {
     }
 }
 
-private fun check(stmt: Stmt, env: TypeEnv) {
+private fun check(stmt: Stmt, env: TypeEnv, returnType: Type? = null) {
     when (stmt) {
         is Stmt.Expression -> typeOf(stmt.expr, env)
         is Stmt.VarDecl -> {
@@ -145,21 +179,42 @@ private fun check(stmt: Stmt, env: TypeEnv) {
         }
 
         is Stmt.Block -> {
-            val child = TypeEnv(env); for (s in stmt.stmts) check(s, child)
+            val child = TypeEnv(env)
+            for (s in stmt.stmts) check(s, child, returnType)
         }
 
         is Stmt.If -> {
-            typeOf(stmt.condition, env); check(stmt.then, env); stmt.or?.let { check(it, env) }
+            typeOf(stmt.condition, env)
+            check(stmt.then, env, returnType)
+            stmt.or?.let { check(it, env, returnType) }
         }
 
         is Stmt.While -> {
-            typeOf(stmt.condition, env); check(stmt.then, env)
+            typeOf(stmt.condition, env)
+            check(stmt.then, env, returnType)
         }
 
         is Stmt.Return -> {
-            stmt.expr?.let { typeOf(it, env) }
+            val actual = stmt.expr?.let { typeOf(it, env) } ?: NullT
+            val expected = returnType ?: NullT
+            if (!assignable(from = actual, to = expected)) {
+                throw TypeError(
+                    stmt.expr?.let { tokenOf(it) },
+                    "Return type mismatch: expected $expected got $actual."
+                )
+            }
         }
     }
 }
 
 private fun assignable(from: Type, to: Type): Boolean = from == to || from == Type.AnyT || to == Type.AnyT
+
+private fun tokenOf(expr: Expr): Token? = when (expr) {
+    is Expr.Variable -> expr.name
+    is Expr.Assign -> expr.name
+    is Expr.Call -> expr.paren
+    is Expr.Binary -> expr.op
+    is Expr.Unary -> expr.op
+    is Expr.Logical -> expr.op
+    else -> null
+}

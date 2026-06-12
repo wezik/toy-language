@@ -54,15 +54,52 @@ private fun resolve(expr: TypeExpr): Type = when (expr) {
 }
 
 private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
-    is Expr.Literal.IntValue -> Type.IntT
-    is Expr.Literal.DoubleValue -> Type.DoubleT
-    is Expr.Literal.BoolValue -> Type.BoolT
-    is Expr.Literal.StringValue -> Type.StringT
-    is Expr.Literal.Null -> Type.NullT
+    is Expr.Literal.IntValue -> IntT
+    is Expr.Literal.DoubleValue -> DoubleT
+    is Expr.Literal.BoolValue -> BoolT
+    is Expr.Literal.StringValue -> StringT
+    is Expr.Literal.Null -> NullT
     is Expr.Variable -> env.get(expr.name)
     is Expr.Grouping -> typeOf(expr.expr, env)
     is Expr.Binary -> binaryType(expr, env)
-    else -> Type.AnyT
+    is Expr.Unary -> unaryType(expr, env)
+    is Expr.Logical -> logicalType(expr, env)
+    is Expr.Assign -> assignType(expr, env)
+    is Expr.Call -> TODO()
+    is Expr.FunLiteral -> TODO()
+}
+
+private fun assignType(expr: Expr.Assign, env: TypeEnv): Type {
+    val declared = env.get(expr.name)
+    val incoming = typeOf(expr.value, env)
+    if (!assignable(from = incoming, to = declared)) {
+        throw TypeError(expr.name, "Cannot assign $incoming to '${expr.name.text}: $declared'.")
+
+    }
+    return declared
+}
+
+private fun logicalType(expr: Expr.Logical, env: TypeEnv): Type {
+    typeOf(expr.left, env)
+    typeOf(expr.right, env)
+    return BoolT
+}
+
+private fun unaryType(expr: Expr.Unary, env: TypeEnv): Type {
+    return when (expr.op.type) {
+        BANG -> {
+            typeOf(expr.right, env)
+            BoolT
+        }
+
+        MINUS -> {
+            val type = typeOf(expr.right, env)
+            if (!type.isNumber()) throw TypeError(expr.op, "'-' requires a number, got $t.")
+            type
+        }
+
+        else -> throw TypeError(expr.op, "Unknown unary operator.")
+    }
 }
 
 private fun binaryType(expr: Expr.Binary, env: TypeEnv): Type {

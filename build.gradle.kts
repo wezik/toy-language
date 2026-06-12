@@ -9,6 +9,9 @@ application {
 
 tasks.named<JavaExec>("run") {
     standardInput = System.`in` // keeps the REPL usable via 'gradlew run'
+    standardOutput = System.out
+    errorOutput = System.err
+    isIgnoreExitValue = true
 }
 
 group = "dev.wezik"

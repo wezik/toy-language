@@ -1,5 +1,8 @@
 package dev.wezik.toy
 
+import dev.wezik.toy.checker.Type
+import dev.wezik.toy.checker.TypeEnv
+import dev.wezik.toy.checker.typeCheck
 import dev.wezik.toy.interpreter.Environment
 import dev.wezik.toy.interpreter.InterpretResult
 import dev.wezik.toy.interpreter.NativeFunction
@@ -17,10 +20,14 @@ fun main(args: Array<String>) {
         declare("print", NativeFunction(1) { args -> println(args[0] ?: "null"); null }, false)
     }
 
-    if (args.isEmpty()) runInteractive(env) else runFile(args[0], env)
+    val typeEnv = TypeEnv().apply {
+        declare("print", Type.FunctionT(listOf(Type.AnyT), Type.NullT))
+    }
+
+    if (args.isEmpty()) runInteractive(env, typeEnv) else runFile(args[0], env, typeEnv)
 }
 
-fun runInteractive(env: Environment) {
+fun runInteractive(env: Environment, typeEnv: TypeEnv) {
     val input = InputStreamReader(System.`in`)
     val reader = BufferedReader(input)
 
@@ -31,13 +38,13 @@ fun runInteractive(env: Environment) {
 
     while (true) {
         val line = reader.readWithPrompt() ?: break
-        run(line, env)
+        run(line, env, typeEnv)
     }
 }
 
-fun runFile(filePath: String, env: Environment) = run(File(filePath).readText(), env)
+fun runFile(filePath: String, env: Environment, typeEnv: TypeEnv) = run(File(filePath).readText(), env, typeEnv)
 
-fun run(source: String, env: Environment) {
+fun run(source: String, env: Environment, typeEnv: TypeEnv) {
     val stmts = when (val result = parse(scan(source))) {
         is ParseResult.Ok -> result.stmts
         is ParseResult.Error -> {
@@ -45,6 +52,10 @@ fun run(source: String, env: Environment) {
             return
         }
     }
+
+    val typeErrors = typeCheck(stmts, typeEnv)
+    typeErrors.forEach { report(it.name, it.message) }
+    if (typeErrors.isNotEmpty()) return
 
     val result = interpret(stmts, env)
     if (result is InterpretResult.Error) {

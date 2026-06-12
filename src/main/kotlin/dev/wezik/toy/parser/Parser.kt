@@ -52,7 +52,7 @@ private class TokenContext(val tokens: List<Token>) {
     }
 
     fun expression(): Expr {
-        val expr = elivs()
+        val expr = elvis()
         if (match(EQUAL)) {
             val value = expression()
             if (expr is Variable) return Assign(expr.name, value)
@@ -62,11 +62,11 @@ private class TokenContext(val tokens: List<Token>) {
         return expr
     }
 
-    fun elivs(): Expr {
+    fun elvis(): Expr {
         var expr = or()
         while (match(QUESTION_COLON)) {
             val op = previous()
-            expr = Elivs(expr, op, or())
+            expr = Elvis(expr, op, or())
         }
         return expr
     }
@@ -264,7 +264,7 @@ private class TokenContext(val tokens: List<Token>) {
 
     fun parseType(): TypeExpr {
         val base = parseBaseType()
-        return if (match(QUESTION)) TypeExpr.Nullable(base) else base
+        return if (match(QUESTION)) TypeExpr.Optional(base) else base
     }
 
     fun parseBaseType(): TypeExpr {

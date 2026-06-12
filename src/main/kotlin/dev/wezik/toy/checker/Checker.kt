@@ -23,8 +23,6 @@ class TypeEnv(private val parent: TypeEnv? = null) {
     }
 }
 
-private fun Type.isNumber() = this in listOf(Type.IntT, Type.DoubleT, Type.AnyT)
-
 fun typeCheck(stmts: List<Stmt>, env: TypeEnv = TypeEnv()): List<TypeError> {
     val errors = mutableListOf<TypeError>()
     for (stmt in stmts) {
@@ -52,7 +50,7 @@ private fun resolve(expr: TypeExpr): Type = when (expr) {
         expr.returns?.let(::resolve) ?: Type.NullT
     )
 
-    is TypeExpr.Nullable -> Type.Nullable(resolve(expr.inner))
+    is TypeExpr.Optional -> Type.Optional(resolve(expr.inner))
 }
 
 private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
@@ -69,17 +67,17 @@ private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
     is Expr.Assign -> assignType(expr, env)
     is Expr.FunLiteral -> funLiteralType(expr, env)
     is Expr.Call -> callType(expr, env)
-    is Expr.Elivs -> elivsType(expr, env)
+    is Expr.Elvis -> elvisType(expr, env)
 }
 
-private fun elivsType(expr: Expr.Elivs, env: TypeEnv): Type {
+private fun elvisType(expr: Expr.Elvis, env: TypeEnv): Type {
     val leftType = typeOf(expr.left, env)
     val rightType = typeOf(expr.right, env)
-    if (leftType !is Type.Nullable && leftType != AnyT) {
-        throw TypeError(expr.op, "Left side of '?:' is not nullable (got $leftType).")
+    if (leftType !is Type.Optional && leftType != AnyT) {
+        throw TypeError(expr.op, "Left side of '?:' is not optional (got $leftType).")
     }
 
-    return if (leftType is Type.Nullable) leftType.inner else rightType
+    return if (leftType is Type.Optional) leftType.inner else rightType
 }
 
 private fun callType(expr: Expr.Call, env: TypeEnv): Type {
@@ -221,14 +219,12 @@ private fun check(stmt: Stmt, env: TypeEnv, returnType: Type? = null) {
     }
 }
 
-private fun assignable(from: Type, to: Type): Boolean {
-    val rules = listOf(
-        from == to,
-        from == AnyT || to == AnyT,
-        to is Type.Nullable && from == NullT,
-        to is Type.Nullable && assignable(from, to.inner),
-    )
-    return rules.any { it }
+private fun assignable(from: Type, to: Type): Boolean = when {
+    from == to -> true
+    from == AnyT || to == AnyT -> true
+    to is Type.Optional && from == NullT -> true
+    to is Type.Optional -> assignable(from, to.inner)
+    else -> false
 }
 
 private fun tokenOf(expr: Expr): Token? = when (expr) {
@@ -238,6 +234,7 @@ private fun tokenOf(expr: Expr): Token? = when (expr) {
     is Expr.Binary -> expr.op
     is Expr.Unary -> expr.op
     is Expr.Logical -> expr.op
+    is Expr.Elvis -> expr.op
     else -> null
 }
 
@@ -249,7 +246,7 @@ private fun narrow(condition: Expr, env: TypeEnv): TypeEnv {
         val right = condition.right
         if (right is Expr.Literal.Null && left is Expr.Variable) {
             val declared = runCatching { env.get(left.name) }.getOrNull()
-            if (declared is Type.Nullable) {
+            if (declared is Type.Optional) {
                 val child = TypeEnv(env)
                 child.declare(left.name.text, declared.inner) // unwrap
                 return child
@@ -258,7 +255,7 @@ private fun narrow(condition: Expr, env: TypeEnv): TypeEnv {
         // also the reverse
         if (left is Expr.Literal.Null && right is Expr.Variable) {
             val declared = runCatching { env.get(right.name) }.getOrNull()
-            if (declared is Type.Nullable) {
+            if (declared is Type.Optional) {
                 val child = TypeEnv(env)
                 child.declare(right.name.text, declared.inner) // unwrap
                 return child

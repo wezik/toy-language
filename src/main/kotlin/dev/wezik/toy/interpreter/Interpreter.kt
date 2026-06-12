@@ -99,7 +99,7 @@ private fun eval(expr: Expr, env: Environment): Any? = when (expr) {
     is Logical -> logical(expr, env)
     is Call -> call(expr, env)
     is FunLiteral -> UserFunction(expr.params, expr.body, env)
-    is Elivs -> eval(expr.left, env) ?: eval(expr.right, env)
+    is Elvis -> eval(expr.left, env) ?: eval(expr.right, env)
 }
 
 private fun Any?.isTruthy() = this != null && this != false

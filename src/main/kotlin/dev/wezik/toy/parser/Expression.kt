@@ -19,7 +19,7 @@ sealed interface Expr {
     data class Logical(val left: Expr, val op: Token, val right: Expr) : Expr
     data class FunLiteral(val params: List<Param>, val returnType: TypeExpr?, val body: List<Stmt>) : Expr
     data class Call(val callee: Expr, val paren: Token, val args: List<Expr>) : Expr
-    data class Elivs(val left: Expr, val op: Token, val right: Expr) : Expr
+    data class Elvis(val left: Expr, val op: Token, val right: Expr) : Expr
 }
 
 data class Param(val name: Token, val type: TypeExpr)

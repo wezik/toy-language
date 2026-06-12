@@ -107,6 +107,7 @@ private class TokenContext(val tokens: List<Token>) {
     fun term(): Expr {
         var expr = factor()
 
+        // - val | + val
         while (match(MINUS, PLUS)) {
             val op = previous()
             val right = factor()
@@ -119,6 +120,7 @@ private class TokenContext(val tokens: List<Token>) {
     fun factor(): Expr {
         var expr = unary()
 
+        // / val | * val
         while (match(SLASH, STAR)) {
             val op = previous()
             val right = unary()
@@ -129,22 +131,39 @@ private class TokenContext(val tokens: List<Token>) {
     }
 
     fun unary(): Expr {
+        // ! val | - val
         while (match(BANG, MINUS)) {
             val op = previous()
-            val right = unary()
-            return Unary(op, right)
+            return Unary(op, unary())
         }
 
-        return primary()
+        return call()
+    }
+
+    fun call(): Expr {
+        var expr = primary()
+        while (match(L_PAREN)) {
+            val args = mutableListOf<Expr>()
+            if (peek()?.type != R_PAREN) {
+                do {
+                    args += expression()
+                } while (match(COMMA))
+            }
+            if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' after arguments.")
+            expr = Call(expr, args)
+        }
+        return expr
     }
 
     fun primary(): Expr {
+        // false | true | null
         when {
             match(FALSE) -> return Literal.BoolValue(false)
             match(TRUE) -> return Literal.BoolValue(true)
             match(NULL) -> return Literal.Null
         }
 
+        // 15 | 15.0 | "15"
         if (match(INT, DOUBLE, STRING)) {
             val previous = previous()
             return when (val lit = previous.literal) {
@@ -155,8 +174,25 @@ private class TokenContext(val tokens: List<Token>) {
             }
         }
 
+        // name
         if (match(IDENTIFIER)) return Variable(previous())
 
+        // () -> Type { body } | () { }
+        if (peek()?.type == L_PAREN && peek(1)?.type == R_PAREN &&
+            (peek(2)?.type == ARROW || peek(2)?.type == L_BRACE)
+        ) {
+            advance() // (
+            advance() // )
+            return funLiteral(emptyList())
+        }
+
+        // (name: Type, ...) -> Type { body }
+        if (peek()?.type == L_PAREN && peek(1)?.type == IDENTIFIER && peek(2)?.type == COLON) {
+            advance() // (
+            return funLiteral(parseParams())
+        }
+
+        // (...)
         if (match(L_PAREN)) {
             val expr = expression()
             if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' after expression.")
@@ -183,6 +219,7 @@ private class TokenContext(val tokens: List<Token>) {
         return statement()
     }
 
+    // {}
     fun block(): List<Stmt> {
         val stmts = mutableListOf<Stmt>()
         while (peek()?.type != R_BRACE && !isAtEnd()) {
@@ -197,6 +234,7 @@ private class TokenContext(val tokens: List<Token>) {
             match(IF) -> ifStatement()
             match(WHILE) -> whileStatement()
             match(L_BRACE) -> Stmt.Block(block())
+            match(RETURN) -> returnStatement()
             // TODO: remove once native function calls are supported
             match(PRINT) -> Stmt.Print(expression())
             else -> Stmt.Expression(expression())
@@ -214,6 +252,31 @@ private class TokenContext(val tokens: List<Token>) {
         val condition = expression()
         val then = statement()
         return Stmt.While(condition, then)
+    }
+
+    fun returnStatement(): Stmt {
+        val expr = if (peek()?.type != R_BRACE && !isAtEnd()) expression() else null
+        return Stmt.Return(expr)
+    }
+
+    fun parseParams(): List<Param> {
+        val result = mutableListOf<Param>()
+        do {
+            val name = advance()
+            if (!match(COLON)) throw ParseError(peek(), "Expected ':' after parameter name.")
+            val type = advance()
+            result += Param(name, type)
+        } while (match(COMMA))
+        if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' after parameters.")
+        return result
+    }
+
+    fun funLiteral(params: List<Param>): Expr {
+        var returnType: Token? = null
+        if (match(ARROW)) returnType = advance()
+        if (!match(L_BRACE)) throw ParseError(peek(), "Expected '{' for function body.")
+        val body = block()
+        return Expr.FunLiteral(params, returnType, body)
     }
 
 }

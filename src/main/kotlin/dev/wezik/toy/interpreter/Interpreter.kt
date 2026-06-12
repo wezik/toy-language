@@ -4,6 +4,7 @@ import dev.wezik.toy.lexer.Token
 import dev.wezik.toy.lexer.Token.Type.*
 import dev.wezik.toy.parser.Expr
 import dev.wezik.toy.parser.Expr.*
+import dev.wezik.toy.parser.Param
 import dev.wezik.toy.parser.Stmt
 import dev.wezik.toy.parser.Stmt.*
 
@@ -14,6 +15,20 @@ sealed interface InterpretResult {
     data class Error(val errors: List<EvalError>) : InterpretResult
 }
 
+private class ReturnValue(val value: Any?) : Throwable(null, null, true, false)
+
+private class NativeFunction(val arity: Int, val fn: (List<Any?>) -> Any?) {
+    override fun toString() = "<native fn>"
+}
+
+private class UserFunction(
+    val params: List<Param>,
+    val body: List<Stmt>,
+    val closure: Environment,
+) {
+    override fun toString() = "<fn>"
+}
+
 fun interpret(stmts: List<Stmt>, env: Environment = Environment()): InterpretResult {
     val errors = mutableListOf<EvalError>()
     for (stmt in stmts) {
@@ -21,6 +36,8 @@ fun interpret(stmts: List<Stmt>, env: Environment = Environment()): InterpretRes
             exec(stmt, env)
         } catch (e: EvalError) {
             errors += e
+        } catch (rv: ReturnValue) {
+            errors += EvalError(null, "'return' outside of a function.")
         }
     }
     return if (errors.isEmpty()) InterpretResult.Ok else InterpretResult.Error(errors)
@@ -42,6 +59,8 @@ private fun exec(stmt: Stmt, env: Environment) {
 
         is While -> while (eval(stmt.condition, env).isTruthy()) exec(stmt.then, env)
 
+        is Return -> throw ReturnValue(stmt.expr?.let { eval(it, env) })
+
         // TODO: remove once native function calls are supported
         is Print -> println(eval(stmt.expr, env) ?: "null")
     }
@@ -59,9 +78,43 @@ private fun eval(expr: Expr, env: Environment): Any? = when (expr) {
     is Binary -> binary(expr, env)
     is Assign -> assign(expr, env)
     is Logical -> logical(expr, env)
+    is Call -> call(expr, env)
+    is FunLiteral -> UserFunction(expr.params, expr.body, env)
 }
 
 private fun Any?.isTruthy() = this != null && this != false
+
+private fun call(expr: Call, env: Environment): Any? {
+    val callee = eval(expr.callee, env)
+    val args = expr.args.map { eval(it, env) }
+    return when (callee) {
+        is NativeFunction -> {
+            if (args.size != callee.arity) {
+                throw EvalError(null, "Expected ${callee.arity} args, got ${args.size}.")
+            }
+            callee.fn(args)
+        }
+
+        is UserFunction -> {
+            if (args.size != callee.params.size) {
+                throw EvalError(null, "Expected ${callee.params.size} args, got ${args.size}.")
+            }
+            val local = Environment(callee.closure)
+            callee.params.zip(args).forEach { (p, a) ->
+                // all args immutable
+                local.declare(p.name, a, mutable = false)
+            }
+            try {
+                for (s in callee.body) exec(s, local)
+                null
+            } catch (rv: ReturnValue) {
+                rv.value
+            }
+        }
+
+        else -> throw EvalError(null, "Value is not callable.")
+    }
+}
 
 private fun logical(expr: Logical, env: Environment): Any {
     return when (expr.op.type) {

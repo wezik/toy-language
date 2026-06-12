@@ -4,48 +4,21 @@ import dev.wezik.toy.lexer.Token
 
 sealed interface Expr {
     sealed interface Literal : Expr {
-        data class BoolValue(val value: Boolean) : Literal {
-            override fun toString() = "$value"
-        }
-
-        data class IntValue(val value: Int) : Literal {
-            override fun toString() = "$value"
-        }
-
-        data class DoubleValue(val value: Double) : Literal {
-            override fun toString() = "$value"
-        }
-
-        data class StringValue(val value: String) : Literal {
-            override fun toString() = "\"$value\""
-        }
-
-        object Null : Literal {
-            override fun toString() = "null"
-        }
+        data class BoolValue(val value: Boolean) : Literal
+        data class IntValue(val value: Int) : Literal
+        data class DoubleValue(val value: Double) : Literal
+        data class StringValue(val value: String) : Literal
+        object Null : Literal
     }
 
-    data class Grouping(val expr: Expr) : Expr {
-        override fun toString() = "($expr)"
-    }
-
-    data class Unary(val op: Token, val right: Expr) : Expr {
-        override fun toString() = "${op.text} $right"
-    }
-
-    data class Binary(val left: Expr, val op: Token, val right: Expr) : Expr {
-        override fun toString() = "(${op.text} $left $right)"
-    }
-
-    data class Variable(val name: Token) : Expr {
-        override fun toString() = name.text
-    }
-
-    data class Assign(val name: Token, val value: Expr) : Expr {
-        override fun toString() = "${name.text} = $value"
-    }
-
-    data class Logical(val left: Expr, val op: Token, val right: Expr) : Expr {
-        override fun toString() = "(${op.text} $left $right)"
-    }
+    data class Grouping(val expr: Expr) : Expr
+    data class Unary(val op: Token, val right: Expr) : Expr
+    data class Binary(val left: Expr, val op: Token, val right: Expr) : Expr
+    data class Variable(val name: Token) : Expr
+    data class Assign(val name: Token, val value: Expr) : Expr
+    data class Logical(val left: Expr, val op: Token, val right: Expr) : Expr
+    data class FunLiteral(val params: List<Param>, val returnType: Token?, val body: List<Stmt>) : Expr
+    data class Call(val callee: Expr, val args: List<Expr>) : Expr
 }
+
+data class Param(val name: Token, val type: Token)

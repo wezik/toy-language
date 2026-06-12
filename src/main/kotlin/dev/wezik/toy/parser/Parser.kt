@@ -52,13 +52,22 @@ private class TokenContext(val tokens: List<Token>) {
     }
 
     fun expression(): Expr {
-        val expr = or()
+        val expr = elivs()
         if (match(EQUAL)) {
             val value = expression()
             if (expr is Variable) return Assign(expr.name, value)
             throw ParseError(previous(), "Invalid assignment target.")
         }
 
+        return expr
+    }
+
+    fun elivs(): Expr {
+        var expr = or()
+        while (match(QUESTION_COLON)) {
+            val op = previous()
+            expr = Elivs(expr, op, or())
+        }
         return expr
     }
 
@@ -254,10 +263,17 @@ private class TokenContext(val tokens: List<Token>) {
     }
 
     fun parseType(): TypeExpr {
+        val base = parseBaseType()
+        return if (match(QUESTION)) TypeExpr.Nullable(base) else base
+    }
+
+    fun parseBaseType(): TypeExpr {
         if (match(L_PAREN)) {
             val params = mutableListOf<TypeExpr>()
             if (peek()?.type != R_PAREN) {
-                do { params += parseType() } while (match(COMMA))
+                do {
+                    params += parseType()
+                } while (match(COMMA))
             }
             if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' in function type.")
             if (!match(ARROW)) throw ParseError(peek(), "Expected '->' in function type.")

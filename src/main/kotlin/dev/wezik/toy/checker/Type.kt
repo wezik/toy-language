@@ -6,6 +6,7 @@ sealed interface Type {
     object BoolT : Type
     object StringT : Type
     object NullT : Type
+    data class Nullable(val inner: Type) : Type
 
     // TODO: temp escape hatch
     object AnyT : Type

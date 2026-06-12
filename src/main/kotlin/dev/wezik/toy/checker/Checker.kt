@@ -51,6 +51,8 @@ private fun resolve(expr: TypeExpr): Type = when (expr) {
         // For now null later, we might need explicit Unit type for function without return values
         expr.returns?.let(::resolve) ?: Type.NullT
     )
+
+    is TypeExpr.Nullable -> Type.Nullable(resolve(expr.inner))
 }
 
 private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
@@ -67,6 +69,17 @@ private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
     is Expr.Assign -> assignType(expr, env)
     is Expr.FunLiteral -> funLiteralType(expr, env)
     is Expr.Call -> callType(expr, env)
+    is Expr.Elivs -> elivsType(expr, env)
+}
+
+private fun elivsType(expr: Expr.Elivs, env: TypeEnv): Type {
+    val leftType = typeOf(expr.left, env)
+    val rightType = typeOf(expr.right, env)
+    if (leftType !is Type.Nullable && leftType != AnyT) {
+        throw TypeError(expr.op, "Left side of '?:' is not nullable (got $leftType).")
+    }
+
+    return if (leftType is Type.Nullable) leftType.inner else rightType
 }
 
 private fun callType(expr: Expr.Call, env: TypeEnv): Type {
@@ -184,8 +197,9 @@ private fun check(stmt: Stmt, env: TypeEnv, returnType: Type? = null) {
         }
 
         is Stmt.If -> {
+            val narrowedEnv = narrow(stmt.condition, env)
             typeOf(stmt.condition, env)
-            check(stmt.then, env, returnType)
+            check(stmt.then, narrowedEnv, returnType)
             stmt.or?.let { check(it, env, returnType) }
         }
 
@@ -207,7 +221,15 @@ private fun check(stmt: Stmt, env: TypeEnv, returnType: Type? = null) {
     }
 }
 
-private fun assignable(from: Type, to: Type): Boolean = from == to || from == Type.AnyT || to == Type.AnyT
+private fun assignable(from: Type, to: Type): Boolean {
+    val rules = listOf(
+        from == to,
+        from == AnyT || to == AnyT,
+        to is Type.Nullable && from == NullT,
+        to is Type.Nullable && assignable(from, to.inner),
+    )
+    return rules.any { it }
+}
 
 private fun tokenOf(expr: Expr): Token? = when (expr) {
     is Expr.Variable -> expr.name
@@ -217,4 +239,32 @@ private fun tokenOf(expr: Expr): Token? = when (expr) {
     is Expr.Unary -> expr.op
     is Expr.Logical -> expr.op
     else -> null
+}
+
+private fun narrow(condition: Expr, env: TypeEnv): TypeEnv {
+    // for now only support `x != null` narrowing
+    // TODO: figure out some good meta-programming pattern for "assuming" types
+    if (condition is Expr.Binary && condition.op.type == BANG_EQUAL) {
+        val left = condition.left
+        val right = condition.right
+        if (right is Expr.Literal.Null && left is Expr.Variable) {
+            val declared = runCatching { env.get(left.name) }.getOrNull()
+            if (declared is Type.Nullable) {
+                val child = TypeEnv(env)
+                child.declare(left.name.text, declared.inner) // unwrap
+                return child
+            }
+        }
+        // also the reverse
+        if (left is Expr.Literal.Null && right is Expr.Variable) {
+            val declared = runCatching { env.get(right.name) }.getOrNull()
+            if (declared is Type.Nullable) {
+                val child = TypeEnv(env)
+                child.declare(right.name.text, declared.inner) // unwrap
+                return child
+            }
+        }
+    }
+
+    return env
 }

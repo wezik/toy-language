@@ -10,7 +10,9 @@ class Environment(private val parent: Environment? = null) {
 
     fun get(name: Token): Any? {
         if (name.text in bindings) return bindings[name.text]!!.value
-        return parent?.get(name) ?: throw EvalError(name, "Undefined variable '${name.text}'.")
+        // don't use '?:' on get's result, a found variable can legitimately hold null
+        val parent = parent ?: throw EvalError(name, "Undefined variable '${name.text}'.")
+        return parent.get(name)
     }
 
     fun declare(name: Token, value: Any?, mutable: Boolean) = declare(name.text, value, mutable)

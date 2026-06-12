@@ -109,13 +109,8 @@ fun scan(source: String): List<Token> {
         }
 
         val text = ctx.source.substring(start, ctx.current).replace("_", "")
-        val typeLiteral = if (integer) {
-            INT to Literal.IntValue(text.toInt())
-        } else {
-            DOUBLE to Literal.DoubleValue(text.toDouble())
-        }
-
-        typeLiteral.let { (type, literal) -> tokenize(type, literal) }
+        if (integer) tokenize(INT, Literal.IntValue(text.toInt()))
+        else tokenize(DOUBLE, Literal.DoubleValue(text.toDouble()))
     }
 
     fun identifierScanner() {
@@ -132,7 +127,6 @@ fun scan(source: String): List<Token> {
             "struct" -> STRUCT
             "true" -> TRUE
             "while" -> WHILE
-            "print" -> PRINT // TODO: remove once native function calls are supported
             else -> IDENTIFIER
         }
         tokenize(type)

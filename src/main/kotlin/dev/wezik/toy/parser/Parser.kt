@@ -45,7 +45,7 @@ private class TokenContext(val tokens: List<Token>) {
         while (!isAtEnd()) {
             when (peek()?.type) {
                 // sync points
-                IF, FOR, RETURN, WHILE, PRINT -> return
+                IF, FOR, RETURN, WHILE -> return
                 else -> advance() // discard until sync point occurs
             }
         }
@@ -150,7 +150,7 @@ private class TokenContext(val tokens: List<Token>) {
                 } while (match(COMMA))
             }
             if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' after arguments.")
-            expr = Call(expr, args)
+            expr = Call(expr, previous(), args)
         }
         return expr
     }
@@ -177,17 +177,8 @@ private class TokenContext(val tokens: List<Token>) {
         // name
         if (match(IDENTIFIER)) return Variable(previous())
 
-        // () -> Type { body } | () { }
-        if (peek()?.type == L_PAREN && peek(1)?.type == R_PAREN &&
-            (peek(2)?.type == ARROW || peek(2)?.type == L_BRACE)
-        ) {
-            advance() // (
-            advance() // )
-            return funLiteral(emptyList())
-        }
-
-        // (name: Type, ...) -> Type { body }
-        if (peek()?.type == L_PAREN && peek(1)?.type == IDENTIFIER && peek(2)?.type == COLON) {
+        // () { body } | (name: Type, ...) -> Type { body }
+        if (peek()?.type == L_PAREN && isFunLiteralAhead()) {
             advance() // (
             return funLiteral(parseParams())
         }
@@ -203,27 +194,25 @@ private class TokenContext(val tokens: List<Token>) {
     }
 
     fun declaration(): Stmt {
-        if (peek()?.type == IDENTIFIER && peek(1)?.type == COLON_EQUAL) {
-            val name = advance() // identifier
-            advance() // :=
-            return Stmt.VarDecl(name, expression(), mutable = true)
-        }
-
-        if (peek()?.type == IDENTIFIER && peek(1)?.type == DOUBLE_COLON) {
-            val name = advance() // identifier
-            advance() // ::
-            return Stmt.VarDecl(name, expression(), mutable = false)
-        }
-
-        if (peek()?.type == IDENTIFIER && peek(1)?.type == COLON) {
-            val name = advance() // identifier
-            advance() // :
-            val typeAnnotation = parseType()
-            if (!match(EQUAL)) throw ParseError(peek(), "Expected '=' after type annotation.")
-            return Stmt.VarDecl(name, expression(), mutable = true, typeAnnotation = typeAnnotation)
+        if (peek()?.type == IDENTIFIER && peek(1)?.type in listOf(COLON_EQUAL, DOUBLE_COLON, COLON)) {
+            return varDecl()
         }
 
         return statement()
+    }
+
+    // name := expr | name :: expr | name: Type = expr
+    fun varDecl(): Stmt {
+        val name = advance() // identifier
+        return when (advance().type) {
+            COLON_EQUAL -> Stmt.VarDecl(name, expression(), mutable = true)
+            DOUBLE_COLON -> Stmt.VarDecl(name, expression(), mutable = false)
+            else -> {
+                val typeAnnotation = parseType()
+                if (!match(EQUAL)) throw ParseError(peek(), "Expected '=' after type annotation.")
+                Stmt.VarDecl(name, expression(), mutable = true, typeAnnotation = typeAnnotation)
+            }
+        }
     }
 
     // {}
@@ -242,8 +231,6 @@ private class TokenContext(val tokens: List<Token>) {
             match(WHILE) -> whileStatement()
             match(L_BRACE) -> Stmt.Block(block())
             match(RETURN) -> returnStatement()
-            // TODO: remove once native function calls are supported
-            match(PRINT) -> Stmt.Print(expression())
             else -> Stmt.Expression(expression())
         }
     }
@@ -280,13 +267,21 @@ private class TokenContext(val tokens: List<Token>) {
         throw ParseError(peek(), "Expected a type.")
     }
 
+    // current token is '(', looks past it for '() {' / '() ->' / '(name: Type'
+    fun isFunLiteralAhead(): Boolean {
+        if (peek(1)?.type == R_PAREN) return peek(2)?.type == ARROW || peek(2)?.type == L_BRACE
+        return peek(1)?.type == IDENTIFIER && peek(2)?.type == COLON
+    }
+
     fun parseParams(): List<Param> {
         val result = mutableListOf<Param>()
-        do {
-            val name = advance()
-            if (!match(COLON)) throw ParseError(peek(), "Expected ':' after parameter name.")
-            result += Param(name, parseType())
-        } while (match(COMMA))
+        if (peek()?.type != R_PAREN) {
+            do {
+                val name = advance()
+                if (!match(COLON)) throw ParseError(peek(), "Expected ':' after parameter name.")
+                result += Param(name, parseType())
+            } while (match(COMMA))
+        }
         if (!match(R_PAREN)) throw ParseError(peek(), "Expected ')' after parameters.")
         return result
     }

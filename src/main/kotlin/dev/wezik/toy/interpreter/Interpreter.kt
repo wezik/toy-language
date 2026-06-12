@@ -17,7 +17,13 @@ sealed interface InterpretResult {
 
 private class ReturnValue(val value: Any?) : Throwable(null, null, true, false)
 
-class NativeFunction(val arity: Int, val fn: (List<Any?>) -> Any?) {
+sealed interface Callable {
+    val arity: Int
+    fun invoke(args: List<Any?>): Any?
+}
+
+class NativeFunction(override val arity: Int, val fn: (List<Any?>) -> Any?) : Callable {
+    override fun invoke(args: List<Any?>) = fn(args)
     override fun toString() = "<native fn>"
 }
 
@@ -25,7 +31,23 @@ class UserFunction(
     val params: List<Param>,
     val body: List<Stmt>,
     val closure: Environment,
-) {
+) : Callable {
+    override val arity get() = params.size
+
+    override fun invoke(args: List<Any?>): Any? {
+        val local = Environment(closure)
+        params.zip(args).forEach { (p, a) ->
+            // all args immutable
+            local.declare(p.name.text, a, mutable = false)
+        }
+        return try {
+            for (s in body) exec(s, local)
+            null
+        } catch (rv: ReturnValue) {
+            rv.value
+        }
+    }
+
     override fun toString() = "<fn>"
 }
 
@@ -36,7 +58,7 @@ fun interpret(stmts: List<Stmt>, env: Environment = Environment()): InterpretRes
             exec(stmt, env)
         } catch (e: EvalError) {
             errors += e
-        } catch (rv: ReturnValue) {
+        } catch (_: ReturnValue) {
             errors += EvalError(null, "'return' outside of a function.")
         }
     }
@@ -46,7 +68,7 @@ fun interpret(stmts: List<Stmt>, env: Environment = Environment()): InterpretRes
 private fun exec(stmt: Stmt, env: Environment) {
     when (stmt) {
         is Expression -> eval(stmt.expr, env)
-        is VarDecl -> env.declare(stmt.name, eval(stmt.intializer, env), stmt.mutable)
+        is VarDecl -> env.declare(stmt.name, eval(stmt.initializer, env), stmt.mutable)
         is Block -> {
             val child = Environment(env)
             for (s in stmt.stmts) exec(s, child)
@@ -60,9 +82,6 @@ private fun exec(stmt: Stmt, env: Environment) {
         is While -> while (eval(stmt.condition, env).isTruthy()) exec(stmt.then, env)
 
         is Return -> throw ReturnValue(stmt.expr?.let { eval(it, env) })
-
-        // TODO: remove once native function calls are supported
-        is Print -> println(eval(stmt.expr, env) ?: "null")
     }
 }
 
@@ -86,34 +105,14 @@ private fun Any?.isTruthy() = this != null && this != false
 
 private fun call(expr: Call, env: Environment): Any? {
     val callee = eval(expr.callee, env)
+    if (callee !is Callable) throw EvalError(expr.paren, "Value is not callable.")
+
     val args = expr.args.map { eval(it, env) }
-    return when (callee) {
-        is NativeFunction -> {
-            if (args.size != callee.arity) {
-                throw EvalError(null, "Expected ${callee.arity} args, got ${args.size}.")
-            }
-            callee.fn(args)
-        }
-
-        is UserFunction -> {
-            if (args.size != callee.params.size) {
-                throw EvalError(null, "Expected ${callee.params.size} args, got ${args.size}.")
-            }
-            val local = Environment(callee.closure)
-            callee.params.zip(args).forEach { (p, a) ->
-                // all args immutable
-                local.declare(p.name, a, mutable = false)
-            }
-            try {
-                for (s in callee.body) exec(s, local)
-                null
-            } catch (rv: ReturnValue) {
-                rv.value
-            }
-        }
-
-        else -> throw EvalError(null, "Value is not callable.")
+    if (args.size != callee.arity) {
+        throw EvalError(expr.paren, "Expected ${callee.arity} args, got ${args.size}.")
     }
+
+    return callee.invoke(args)
 }
 
 private fun logical(expr: Logical, env: Environment): Any {
@@ -137,7 +136,7 @@ private fun unary(expr: Unary, env: Environment): Any {
         MINUS -> when (right) {
             is Int -> -right
             is Double -> -right
-            else -> throw EvalError(expr.op, "Operrand must be a number.")
+            else -> throw EvalError(expr.op, "Operand must be a number.")
         }
 
         else -> throw EvalError(expr.op, "Unknown unary operator.")
@@ -155,7 +154,7 @@ private fun binary(expr: Binary, env: Environment): Any {
     }
 
     fun Int.divWithGuards(other: Int): Int {
-        if (other == 0) throw EvalError(expr.op, "Divison by zero.")
+        if (other == 0) throw EvalError(expr.op, "Division by zero.")
         return this / other
     }
 

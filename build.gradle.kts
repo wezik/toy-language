@@ -1,5 +1,14 @@
 plugins {
     kotlin("jvm") version "2.2.21"
+    application
+}
+
+application {
+    mainClass = "dev.wezik.toy.MainKt"
+}
+
+tasks.named<JavaExec>("run") {
+    standardInput = System.`in` // keeps the REPL usable via 'gradlew run'
 }
 
 group = "dev.wezik"

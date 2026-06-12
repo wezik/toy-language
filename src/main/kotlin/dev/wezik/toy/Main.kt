@@ -35,47 +35,27 @@ fun runInteractive(env: Environment) {
     }
 }
 
-fun runFile(filePath: String, env: Environment) {
-    val bytes = File(filePath).readBytes()
-    run(String(bytes), env)
-    // if (scannerContext.hadError) exitProcess(65)
-}
+fun runFile(filePath: String, env: Environment) = run(File(filePath).readText(), env)
 
 fun run(source: String, env: Environment) {
-    // tokenize
-    val tokens = scan(source)
-    // println("Tokens: ${tokens.joinToString(" ")}")
-
-    // parse
-    val parseResult = parse(tokens)
-    if (parseResult is ParseResult.Error) {
-        for (e in parseResult.errors) {
-            if (e.token?.type == Token.Type.EOF) {
-                System.err.println("[line ${e.token.line}] at the end: ${e.message}")
-            } else {
-                System.err.println("[line ${e.token?.line}:${e.token?.column}] at ${e.token?.text}: ${e.message}")
-            }
+    val stmts = when (val result = parse(scan(source))) {
+        is ParseResult.Ok -> result.stmts
+        is ParseResult.Error -> {
+            result.errors.forEach { report(it.token, it.message) }
+            return
         }
-        return
     }
 
-    // force the type
-    if (parseResult !is ParseResult.Ok) error("???")
-    // println("Expr: ${parseResult.expr}")
-
-    // interpret
-    val interpretResult = interpret(parseResult.stmts, env)
-    if (interpretResult is InterpretResult.Error) {
-        for (e in interpretResult.errors) {
-            if (e.token?.type == Token.Type.EOF) {
-                System.err.println("[line ${e.token.line}] at the end: ${e.message}")
-            } else {
-                System.err.println("[line ${e.token?.line}:${e.token?.column}] at ${e.token?.text}: ${e.message}")
-            }
-        }
-        return
+    val result = interpret(stmts, env)
+    if (result is InterpretResult.Error) {
+        result.errors.forEach { report(it.token, it.message) }
     }
+}
 
-    // force the type
-    if (interpretResult !is InterpretResult.Ok) error("???")
+fun report(token: Token?, message: String) {
+    if (token == null || token.type == Token.Type.EOF) {
+        System.err.println("[line ${token?.line ?: "?"}] at the end: $message")
+    } else {
+        System.err.println("[line ${token.line}:${token.column}] at ${token.text}: $message")
+    }
 }

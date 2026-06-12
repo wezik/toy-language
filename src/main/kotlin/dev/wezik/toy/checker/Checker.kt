@@ -69,6 +69,17 @@ private fun typeOf(expr: Expr, env: TypeEnv): Type = when (expr) {
     is Expr.Assign -> assignType(expr, env)
     is Expr.FunLiteral -> funLiteralType(expr, env)
     is Expr.Call -> callType(expr, env)
+    is Expr.Elivs -> elivsType(expr, env)
+}
+
+private fun elivsType(expr: Expr.Elivs, env: TypeEnv): Type {
+    val leftType = typeOf(expr.left, env)
+    val rightType = typeOf(expr.right, env)
+    if (leftType !is Type.Nullable && leftType != AnyT) {
+        throw TypeError(expr.op, "Left side of '?:' is not nullable (got $leftType).")
+    }
+
+    return if (leftType is Type.Nullable) leftType.inner else rightType
 }
 
 private fun callType(expr: Expr.Call, env: TypeEnv): Type {
